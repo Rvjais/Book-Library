@@ -50,6 +50,7 @@ class PdfReaderEngine implements ReaderEngine {
     return PdfPageView(
       engine: this,
       pageIndex: pageIndex,
+      settings: settings,
       safeInsets: safeInsets,
     );
   }

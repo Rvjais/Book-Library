@@ -468,6 +468,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   math.max(0, engine.pageCount - 1),
                 ),
                 turnStyle: _settings.turnStyle,
+                theme: _settings.theme,
                 onPageChanged: _onPageChanged,
                 onTapCenter: () => setState(() => _chromeVisible = !_chromeVisible),
                 itemBuilder: (context, index) {
@@ -603,9 +604,7 @@ class _ReaderPage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     letterSpacing: 1.1,
-                    color: book.isEpub
-                        ? palette.muted
-                        : const Color(0xFF6B5B48).withValues(alpha: 0.75),
+                    color: palette.muted,
                   ),
                 ),
               ),

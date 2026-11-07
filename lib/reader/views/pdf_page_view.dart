@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../data/reader_settings.dart';
 import '../engines/pdf_engine.dart';
 
 class PdfPageView extends StatefulWidget {
@@ -9,11 +10,13 @@ class PdfPageView extends StatefulWidget {
     super.key,
     required this.engine,
     required this.pageIndex,
+    required this.settings,
     this.safeInsets = EdgeInsets.zero,
   });
 
   final PdfReaderEngine engine;
   final int pageIndex;
+  final ReaderSettings settings;
   final EdgeInsets safeInsets;
 
   @override
@@ -43,10 +46,81 @@ class _PdfPageViewState extends State<PdfPageView> {
     widget.engine.prefetch(widget.pageIndex);
   }
 
+  Widget _buildThemedImage(ui.Image image) {
+    final raw = RawImage(
+      image: image,
+      fit: BoxFit.contain,
+      alignment: Alignment.center,
+      filterQuality: FilterQuality.medium,
+    );
+
+    final theme = widget.settings.theme;
+    switch (theme) {
+      case ReaderTheme.light:
+        // Default paper look: multiply slightly with warm paper tint
+        return ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            widget.settings.palette.page,
+            BlendMode.multiply,
+          ),
+          child: raw,
+        );
+
+      case ReaderTheme.sepia:
+        // Sepia tint: invert colors don't apply, multiply page color over white/grayscale document
+        return ColorFiltered(
+          colorFilter: ColorFilter.mode(
+            widget.settings.palette.page,
+            BlendMode.multiply,
+          ),
+          child: raw,
+        );
+
+      case ReaderTheme.dark:
+        // Invert luminance (negate RGB) + multiply night palette color for comfortable reading
+        const invertMatrix = <double>[
+          -1.0, 0, 0, 0, 255, // red
+          0, -1.0, 0, 0, 255, // green
+          0, 0, -1.0, 0, 255, // blue
+          0, 0, 0, 1.0, 0, // alpha
+        ];
+        return ColorFiltered(
+          colorFilter: const ColorFilter.matrix(invertMatrix),
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.mode(
+              Color(0xFFE8DFD0),
+              BlendMode.modulate,
+            ),
+            child: raw,
+          ),
+        );
+
+      case ReaderTheme.black:
+        // Pure black OLED theme: invert so white PDF becomes true dark mode
+        const invertMatrix = <double>[
+          -1.0, 0, 0, 0, 255,
+          0, -1.0, 0, 0, 255,
+          0, 0, -1.0, 0, 255,
+          0, 0, 0, 1.0, 0,
+        ];
+        return ColorFiltered(
+          colorFilter: const ColorFilter.matrix(invertMatrix),
+          child: ColorFiltered(
+            colorFilter: const ColorFilter.mode(
+              Color(0xFFD6CFC7),
+              BlendMode.modulate,
+            ),
+            child: raw,
+          ),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final palette = widget.settings.palette;
     return ColoredBox(
-      color: const Color(0xFFFFFEFB),
+      color: palette.page,
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           widget.safeInsets.left + 8,
@@ -64,30 +138,25 @@ class _PdfPageViewState extends State<PdfPageView> {
                   child: Text(
                     'This page could not be rendered.\n${snapshot.error}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(color: Color(0xFF6B5B48), fontSize: 13),
+                    style: TextStyle(color: palette.muted, fontSize: 13),
                   ),
                 ),
               );
             }
             final image = snapshot.data;
             if (image == null) {
-              return const Center(
+              return Center(
                 child: SizedBox(
                   width: 22,
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Color(0xFF8A6A45),
+                    color: palette.accent,
                   ),
                 ),
               );
             }
-            return RawImage(
-              image: image,
-              fit: BoxFit.contain,
-              alignment: Alignment.center,
-              filterQuality: FilterQuality.medium,
-            );
+            return _buildThemedImage(image);
           },
         ),
       ),
