@@ -21,7 +21,10 @@ class BookPager extends StatefulWidget {
     required this.onPageChanged,
     this.turnStyle = PageTurnStyle.curl,
     this.theme = ReaderTheme.light,
+    this.texture = PageTexture.none,
     this.onTapCenter,
+    this.pageReady,
+    this.gesturesEnabled = true,
   });
 
   final int pageCount;
@@ -30,7 +33,16 @@ class BookPager extends StatefulWidget {
   final ValueChanged<int> onPageChanged;
   final PageTurnStyle turnStyle;
   final ReaderTheme theme;
+  final PageTexture texture;
   final VoidCallback? onTapCenter;
+
+  /// Whether the page at [index] has finished drawing. Bitmap pages (PDF) are
+  /// only snapshotted when ready, so a turn can never peel a loading spinner.
+  final bool Function(int index)? pageReady;
+
+  /// False while the page is zoomed: page-turn swipes must not fight the
+  /// zoom/pan gesture, and edge taps must not jump away from the zoomed area.
+  final bool gesturesEnabled;
 
   @override
   State<BookPager> createState() => _BookPagerState();
@@ -48,8 +60,11 @@ class _BookPagerState extends State<BookPager>
   bool _dragging = false;
   bool _animating = false;
   bool _capturing = false;
+  bool _ignoreDragUntilEnd = false;
 
   double _dragStartX = 0;
+  double _dragStartY = 0;
+  double _dragAngle = 0.0;
   int _dragDirection = 0;
 
   ui.Image? _snapshot;
@@ -74,7 +89,8 @@ class _BookPagerState extends State<BookPager>
     final maxIndex = math.max(0, widget.pageCount - 1);
     if (widget.pageIndex != _index ||
         widget.pageCount != oldWidget.pageCount ||
-        widget.theme != oldWidget.theme) {
+        widget.theme != oldWidget.theme ||
+        widget.texture != oldWidget.texture) {
       _cancelCaptureTimers();
       if (widget.pageIndex != _index || widget.pageCount != oldWidget.pageCount) {
         _controller.stop();
@@ -83,6 +99,7 @@ class _BookPagerState extends State<BookPager>
         _dragging = false;
         _animating = false;
         _dragDirection = 0;
+        _dragAngle = 0.0;
         _index = widget.pageIndex.clamp(0, maxIndex);
       }
       _disposeSnapshot();
@@ -100,11 +117,14 @@ class _BookPagerState extends State<BookPager>
 
   // ------------------------------------------------------------- snapshots
 
+  bool _isReady(int index) => widget.pageReady?.call(index) ?? true;
+
   void _scheduleCapture() {
     _cancelCaptureTimers();
     for (final delay in const [
       Duration(milliseconds: 120),
       Duration(milliseconds: 850),
+      Duration(milliseconds: 1600),
     ]) {
       _captureTimers.add(
         Timer(delay, () {
@@ -131,6 +151,9 @@ class _BookPagerState extends State<BookPager>
   Future<void> _capture({bool force = false}) async {
     if (_capturing || !mounted) return;
     if (!force && _snapshot != null && _snapshotIndex == _index) return;
+    // Capturing before the page has painted would freeze a spinner into the
+    // page-turn animation.
+    if (!_isReady(_index)) return;
 
     final boundary =
         _boundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -157,16 +180,28 @@ class _BookPagerState extends State<BookPager>
 
   // ------------------------------------------------------------- gestures
 
-  void _onHorizontalDragStart(DragStartDetails details) {
+  void _onDragStart(DragStartDetails details, Size size) {
     if (_animating) return;
     _dragStartX = details.localPosition.dx;
+    _dragStartY = details.localPosition.dy;
+    // Calculate vertical angle offset (-1.0 at top corner, +1.0 at bottom corner)
+    final centerY = size.height * 0.5;
+    _dragAngle = centerY <= 0 ? 0.0 : ((_dragStartY - centerY) / centerY).clamp(-1.0, 1.0);
     _dragDirection = 0;
     _dragging = false;
+    _ignoreDragUntilEnd = false;
   }
 
-  void _onHorizontalDragUpdate(DragUpdateDetails details, Size size) {
-    if (_animating) return;
+  void _onDragUpdate(DragUpdateDetails details, Size size) {
+    if (_animating || _ignoreDragUntilEnd) return;
     final dx = details.localPosition.dx - _dragStartX;
+    final dy = details.localPosition.dy - _dragStartY;
+
+    // Follow the drag path dynamically
+    final centerY = size.height * 0.5;
+    if (centerY > 0) {
+      _dragAngle = ((details.localPosition.dy - centerY) / centerY).clamp(-1.0, 1.0);
+    }
 
     if (!_dragging) {
       if (dx.abs() < 12) return;
@@ -175,6 +210,15 @@ class _BookPagerState extends State<BookPager>
       if (target < 0 || target >= widget.pageCount) {
         return; // at edge
       }
+
+      // Instant turns and pages that are not painted yet skip the peel and
+      // commit immediately instead of showing a fake 440 ms animation.
+      if (widget.turnStyle == PageTurnStyle.none || !_isReady(_index)) {
+        _ignoreDragUntilEnd = true;
+        _commitInstantly(target);
+        return;
+      }
+
       _dragging = true;
       _dragDirection = requestedDirection;
       _direction = requestedDirection;
@@ -183,13 +227,16 @@ class _BookPagerState extends State<BookPager>
       unawaited(_capture(force: true));
     }
 
-    final fraction = (dx.abs() / size.width).clamp(0.0, 1.0);
+    // Combine horizontal and vertical diagonal drag distance for natural page response
+    final distance = math.sqrt(dx * dx + dy * dy * 0.25);
+    final fraction = (distance / size.width).clamp(0.0, 1.0);
     final signMatches = (dx < 0 && _dragDirection == 1) ||
         (dx > 0 && _dragDirection == -1);
     _controller.value = signMatches ? fraction : 0.0;
   }
 
-  void _onHorizontalDragEnd(DragEndDetails details, Size size) {
+  void _onDragEnd(DragEndDetails details, Size size) {
+    _ignoreDragUntilEnd = false;
     if (!_dragging) return;
     _dragging = false;
 
@@ -202,6 +249,17 @@ class _BookPagerState extends State<BookPager>
   }
 
   void _animateToEnd({required bool commit}) {
+    // If no snapshot was captured (or snapshot is stale), commit instantly
+    // if dragging past threshold rather than leaving the page stuck in blank drag state
+    if (_snapshot == null || _snapshotIndex != _index) {
+      if (commit && _target != null) {
+        _commitInstantly(_target!);
+      } else {
+        _commitInstantly(_index);
+      }
+      return;
+    }
+
     _animating = true;
     final destination = commit ? 1.0 : 0.0;
     final remaining = (destination - _controller.value).abs();
@@ -229,13 +287,36 @@ class _BookPagerState extends State<BookPager>
         });
   }
 
+  /// Flips to [target] with no animation or delay.
+  void _commitInstantly(int target) {
+    _cancelCaptureTimers();
+    _controller.stop();
+    _controller.value = 0;
+    _target = null;
+    _dragDirection = 0;
+    _animating = false;
+    _dragging = false;
+    _index = target.clamp(0, math.max(0, widget.pageCount - 1));
+    widget.onPageChanged(_index);
+    _disposeSnapshot();
+    _scheduleCapture();
+    setState(() {});
+  }
+
   void _turnBy(int delta) {
     if (_animating || _dragging) return;
     final target = _index + delta;
     if (target < 0 || target >= widget.pageCount) return;
 
+    // Genuinely instant style, or a page that has not painted yet.
+    if (widget.turnStyle == PageTurnStyle.none || !_isReady(_index)) {
+      _commitInstantly(target);
+      return;
+    }
+
     _direction = delta;
     _target = target;
+    _dragAngle = 0.0;
     _animating = true;
 
     void run() {
@@ -263,7 +344,16 @@ class _BookPagerState extends State<BookPager>
     if (_snapshot != null && _snapshotIndex == _index) {
       run();
     } else {
-      unawaited(_capture(force: true).then((_) => run()));
+      unawaited(
+        _capture(force: true).then((_) {
+          if (!mounted) return;
+          if (_snapshot != null && _snapshotIndex == _index) {
+            run();
+          } else {
+            _commitInstantly(target);
+          }
+        }),
+      );
     }
   }
 
@@ -278,63 +368,98 @@ class _BookPagerState extends State<BookPager>
       builder: (context, constraints) {
         final size = constraints.biggest;
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onHorizontalDragStart: _onHorizontalDragStart,
-          onHorizontalDragUpdate: (d) => _onHorizontalDragUpdate(d, size),
-          onHorizontalDragEnd: (d) => _onHorizontalDragEnd(d, size),
-          onTapUp: (details) {
-            if (_animating || _dragging) return;
-            final x = details.localPosition.dx;
-            final w = size.width;
-            if (x < w * 0.25) {
-              _turnBy(-1);
-            } else if (x > w * 0.75) {
-              _turnBy(1);
-            } else {
-              widget.onTapCenter?.call();
-            }
-          },
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final activeTarget = _target;
-              final isMoving = (_animating || _dragging) &&
-                  activeTarget != null &&
-                  _snapshot != null;
+        return RepaintBoundary(
+          key: _boundaryKey,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            // Removing the recognizers (rather than ignoring inside them) is
+            // what lets a zoomed page receive pan and pinch gestures.
+            onHorizontalDragStart: widget.gesturesEnabled
+                ? (d) => _onDragStart(d, size)
+                : null,
+            onHorizontalDragUpdate: widget.gesturesEnabled
+                ? (d) => _onDragUpdate(d, size)
+                : null,
+            onHorizontalDragEnd: widget.gesturesEnabled
+                ? (d) => _onDragEnd(d, size)
+                : null,
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final activeTarget = _target;
+                final isMoving = (_animating || _dragging) &&
+                    activeTarget != null &&
+                    _snapshot != null &&
+                    _snapshotIndex == _index;
 
-              if (!isMoving) {
-                return RepaintBoundary(
-                  key: _boundaryKey,
-                  child: widget.itemBuilder(context, clampedIndex),
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    widget.itemBuilder(
+                      context,
+                      isMoving ? activeTarget.clamp(0, maxIndex) : clampedIndex,
+                    ),
+                    if (isMoving)
+                      _buildAnimatedLeaf(
+                        size: size,
+                        image: _snapshot!,
+                        progress: _controller.value,
+                        dragAngle: _dragAngle,
+                        backward: _direction < 0,
+                        style: widget.turnStyle,
+                      ),
+
+                    // Edge tap areas for turning pages when tapped on left/right 20%
+                    // of the screen. Middle area is left open so taps and long-press
+                    // text selections reach SelectableText directly without being intercepted.
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: size.width * 0.20,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTapUp: (_) => _turnBy(-1),
+                      ),
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: size.width * 0.20,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTapUp: (_) => _turnBy(1),
+                      ),
+                    ),
+                    // Center tap area for toggling the reader controls
+                    Positioned(
+                      left: size.width * 0.20,
+                      right: size.width * 0.20,
+                      top: size.height * 0.35,
+                      bottom: size.height * 0.35,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onTapUp: (_) => widget.onTapCenter?.call(),
+                      ),
+                    ),
+                  ],
                 );
-              }
-
-              // During animation: incoming page sits underneath, outgoing peels/slides.
-              return Stack(
-                fit: StackFit.expand,
-                children: [
-                  widget.itemBuilder(context, activeTarget.clamp(0, maxIndex)),
-                  _buildAnimatedLeaf(
-                    size: size,
-                    image: _snapshot!,
-                    progress: _controller.value,
-                    backward: _direction < 0,
-                    style: widget.turnStyle,
-                  ),
-                ],
-              );
-            },
+              },
+            ),
           ),
         );
       },
     );
   }
 
+
+
   Widget _buildAnimatedLeaf({
     required Size size,
     required ui.Image image,
     required double progress,
+    required double dragAngle,
     required bool backward,
     required PageTurnStyle style,
   }) {
@@ -348,6 +473,7 @@ class _BookPagerState extends State<BookPager>
               image: image,
               progress: clamped,
               fromLeft: backward,
+              dragAngle: dragAngle,
             ),
           ),
         );

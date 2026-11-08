@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
@@ -10,10 +11,17 @@ import '../../data/library_types.dart';
 import '../../data/reader_settings.dart';
 import '../../data/settings_repository.dart';
 import '../common/app_sheet.dart';
+import '../../features/identity/data/peer_identity.dart';
 import 'widgets/reader_settings_panel.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.active = true, this.identity});
+
+  /// True while this tab is the visible one. Storage is recalculated when the
+  /// tab becomes active, instead of showing a number frozen at app start.
+  final bool active;
+
+  final IdentityRepository? identity;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -23,10 +31,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late Future<int> _storage;
   bool _busy = false;
 
+  IdentityRepository? _getIdentity(BuildContext context) {
+    if (widget.identity != null) return widget.identity;
+    try {
+      return context.read<IdentityRepository>();
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _storage = context.read<LibraryRepository>().storageBytes();
+  }
+
+  @override
+  void didUpdateWidget(covariant SettingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) {
+      _refreshStorage();
+    }
   }
 
   void _refreshStorage() {
@@ -35,7 +60,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _chooseSort(SettingsRepository settings) async {
+  Future<void> _chooseSort() async {
     final library = context.read<LibraryRepository>();
     await showAppSheet<void>(
       context: context,
@@ -76,8 +101,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             )
                           : null,
                       onTap: () {
+                        // LibraryRepository.setSortMode already persists the
+                        // choice through SettingsRepository.
                         library.setSortMode(mode);
-                        unawaited(settings.setSortMode(mode));
                         setSheetState(() {});
                       },
                     ),
@@ -134,6 +160,132 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await settings.updateReader(const ReaderSettings());
     if (!mounted) return;
     showToast(context, 'Reading settings reset to their defaults.');
+  }
+
+  Future<void> _editDisplayName() async {
+    final identity = _getIdentity(context);
+    if (identity == null) return;
+    final controller = TextEditingController(text: identity.identity.displayName);
+    final next = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Display name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Display name',
+            border: OutlineInputBorder(),
+          ),
+          maxLength: 32,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (next == null || next.isEmpty || !mounted) return;
+    await identity.setDisplayName(next);
+  }
+
+  Future<void> _copyUserId() async {
+    final identity = _getIdentity(context);
+    if (identity == null) return;
+    final userId = identity.identity.userId;
+    await Clipboard.setData(ClipboardData(text: userId));
+    if (!mounted) return;
+    showToast(context, 'User ID copied to clipboard.');
+  }
+
+  Future<void> _exportRecovery() async {
+    final identity = _getIdentity(context);
+    if (identity == null || !identity.hasPrivateKey) {
+      if (!mounted) return;
+      showToast(context, 'No private key available to back up.');
+      return;
+    }
+    final controller = TextEditingController();
+    final exported = await showDialog<IdentityRecoveryBundle>(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: const Text('Export recovery backup'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Create a password to protect this recovery file. Without '
+                  'this file and password, your identity cannot be recovered '
+                  'if this device is lost.',
+                  style: TextStyle(fontSize: 12.5, height: 1.4),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Recovery password',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogCtx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final pw = controller.text.trim();
+                if (pw.isEmpty) {
+                  Navigator.of(dialogCtx).pop();
+                  return;
+                }
+                try {
+                  Navigator.of(dialogCtx).pop(
+                    identity.exportRecoveryBundle(pw),
+                  );
+                } catch (_) {
+                  Navigator.of(dialogCtx).pop();
+                }
+              },
+              child: const Text('Export'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    if (!mounted || exported == null) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Recovery backup exported'),
+        content: SelectableText(
+          exported.toJson(),
+          style: const TextStyle(fontSize: 11, fontFamily: 'monospace'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -241,7 +393,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       icon: Icons.sort_rounded,
                       title: 'Sort books by',
                       subtitle: settings.sortMode.label,
-                      onTap: () => unawaited(_chooseSort(settings)),
+                      onTap: () => unawaited(_chooseSort()),
                     ),
                     _SwitchRow(
                       icon: Icons.calendar_today_rounded,
@@ -285,13 +437,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ],
                 ),
                 const SizedBox(height: 22),
-                const _SectionTitle('Reading defaults'),
+                const _SectionTitle('Reading settings'),
                 _SettingsCard(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 2),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       child: ReaderSettingsPanel(
                         settings: settings.reader,
+                        isPdf: false,
                         onChanged: (value) =>
                             unawaited(settings.updateReader(value)),
                       ),
@@ -306,6 +459,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     icon: const Icon(Icons.restart_alt_rounded, size: 18),
                     label: const Text('Reset reading settings'),
                   ),
+                ),
+                const SizedBox(height: 18),
+                Builder(
+                  builder: (ctx) {
+                    final identRepo = _getIdentity(ctx);
+                    if (identRepo == null) return const SizedBox.shrink();
+                    final ident = identRepo.identity;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _SectionTitle('Account & Identity'),
+                        _SettingsCard(
+                          children: [
+                            _SettingsRow(
+                              icon: Icons.person_outline_rounded,
+                              title: 'Display name',
+                              subtitle: ident.displayName,
+                              onTap: () => unawaited(_editDisplayName()),
+                            ),
+                            _SettingsRow(
+                              icon: Icons.badge_outlined,
+                              title: 'User ID',
+                              subtitle: ident.userId,
+                              onTap: () => unawaited(_copyUserId()),
+                            ),
+                            _SettingsRow(
+                              icon: Icons.vpn_key_outlined,
+                              title: 'Recovery backup',
+                              subtitle: 'Export an encrypted identity recovery file.',
+                              onTap: () => unawaited(_exportRecovery()),
+                            ),
+                            _SettingsRow(
+                              icon: Icons.lock_outline_rounded,
+                              title: 'Peer ID (diagnostics)',
+                              subtitle: ident.shortPeerId,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 18),
                 const _SectionTitle('About'),

@@ -10,12 +10,14 @@ class ReaderSettingsPanel extends StatelessWidget {
     super.key,
     required this.settings,
     required this.onChanged,
+    this.isPdf = false,
     this.showPageTurn = true,
     this.showBrightness = true,
   });
 
   final ReaderSettings settings;
   final ValueChanged<ReaderSettings> onChanged;
+  final bool isPdf;
   final bool showPageTurn;
   final bool showBrightness;
 
@@ -28,41 +30,84 @@ class ReaderSettingsPanel extends StatelessWidget {
         const _SectionLabel('Page theme'),
         _ThemeRow(settings: settings, onChanged: onChanged),
         const SizedBox(height: 18),
-        const _SectionLabel('Typeface'),
-        Row(
+
+        const _SectionLabel('Page texture'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            _PillButton(
-              label: 'Serif',
-              selected: settings.serif,
-              onTap: () => onChanged(settings.copyWith(serif: true)),
-            ),
-            const SizedBox(width: 8),
-            _PillButton(
-              label: 'Sans serif',
-              selected: !settings.serif,
-              onTap: () => onChanged(settings.copyWith(serif: false)),
-            ),
+            for (final texture in PageTexture.values)
+              _PillButton(
+                label: texture.label,
+                selected: settings.texture == texture,
+                onTap: () => onChanged(settings.copyWith(texture: texture)),
+              ),
           ],
         ),
+        const SizedBox(height: 7),
+        Text(
+          settings.texture.description,
+          style: TextStyle(
+            fontSize: 11.5,
+            height: 1.4,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
         const SizedBox(height: 18),
-        _SliderRow(
-          label: 'Text size',
-          value: settings.fontSize,
-          min: 13,
-          max: 32,
-          divisions: 19,
-          display: '${settings.fontSize.round()}',
-          onChanged: (value) => onChanged(settings.copyWith(fontSize: value)),
-        ),
-        _SliderRow(
-          label: 'Line spacing',
-          value: settings.lineHeight,
-          min: 1.15,
-          max: 2.4,
-          divisions: 25,
-          display: settings.lineHeight.toStringAsFixed(2),
-          onChanged: (value) => onChanged(settings.copyWith(lineHeight: value)),
-        ),
+
+        if (isPdf) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.brass.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.brass.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.picture_as_pdf_outlined,
+                  size: 16,
+                  color: AppColors.brass,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'PDF pages have pre-formatted fixed layout. Themes, textures, page turns, margins, and pinch-zoom apply directly to PDFs.',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.35,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+        ] else ...[
+          _SliderRow(
+            label: 'Text size',
+            value: settings.fontSize,
+            min: 13,
+            max: 32,
+            divisions: 19,
+            display: '${settings.fontSize.round()}',
+            onChanged: (value) => onChanged(settings.copyWith(fontSize: value)),
+          ),
+          _SliderRow(
+            label: 'Line spacing',
+            value: settings.lineHeight,
+            min: 1.15,
+            max: 2.4,
+            divisions: 25,
+            display: settings.lineHeight.toStringAsFixed(2),
+            onChanged: (value) => onChanged(settings.copyWith(lineHeight: value)),
+          ),
+        ],
+
         _SliderRow(
           label: 'Margins',
           value: settings.margins,
@@ -73,13 +118,16 @@ class ReaderSettingsPanel extends StatelessWidget {
           onChanged: (value) => onChanged(settings.copyWith(margins: value)),
         ),
         const SizedBox(height: 4),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          dense: true,
-          title: const Text('Justify text', style: TextStyle(fontSize: 14)),
-          value: settings.justify,
-          onChanged: (value) => onChanged(settings.copyWith(justify: value)),
-        ),
+
+        if (!isPdf)
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: const Text('Justify text', style: TextStyle(fontSize: 14)),
+            value: settings.justify,
+            onChanged: (value) => onChanged(settings.copyWith(justify: value)),
+          ),
+
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           dense: true,
@@ -88,6 +136,7 @@ class ReaderSettingsPanel extends StatelessWidget {
           onChanged: (value) =>
               onChanged(settings.copyWith(showPageNumber: value)),
         ),
+
         if (showPageTurn) ...[
           const SizedBox(height: 12),
           const _SectionLabel('Page turn'),
@@ -113,6 +162,7 @@ class ReaderSettingsPanel extends StatelessWidget {
             ),
           ),
         ],
+
         if (showBrightness) ...[
           const SizedBox(height: 14),
           _SliderRow(
@@ -120,34 +170,84 @@ class ReaderSettingsPanel extends StatelessWidget {
             value: settings.brightness,
             min: 0,
             max: 0.65,
-            divisions: 13,
+            divisions: 26,
             display: '${(settings.brightness * 100).round()}%',
             onChanged: (value) =>
                 onChanged(settings.copyWith(brightness: value)),
           ),
         ],
-        const SizedBox(height: 8),
       ],
     );
   }
 }
 
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.label);
+  const _SectionLabel(this.text);
 
-  final String label;
+  final String text;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 9),
       child: Text(
-        label.toUpperCase(),
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
+        text.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 10.5,
           letterSpacing: 1.1,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+          color: Color(0xFF8A6A45),
+        ),
+      ),
+    );
+  }
+}
+
+class _PillButton extends StatelessWidget {
+  const _PillButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final border = selected
+        ? Border.all(color: AppColors.brass, width: 1.4)
+        : Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.65));
+
+    final background = selected
+        ? AppColors.brass.withValues(alpha: 0.16)
+        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.45);
+
+    final textColor = selected
+        ? (theme.brightness == Brightness.dark
+            ? AppColors.cream
+            : AppColors.leather)
+        : theme.colorScheme.onSurface;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(18),
+          border: border,
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12.5,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            color: textColor,
+          ),
         ),
       ),
     );
@@ -162,58 +262,83 @@ class _ThemeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Row(
       children: [
-        for (final option in ReaderTheme.values)
+        for (final theme in ReaderTheme.values) ...[
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: () => onChanged(settings.copyWith(theme: option)),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: paletteFor(option).page,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: settings.theme == option
-                              ? theme.colorScheme.primary
-                              : theme.colorScheme.outline
-                                  .withValues(alpha: 0.5),
-                          width: settings.theme == option ? 2 : 1,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'Aa',
-                        style: serifStyle(
-                          fontSize: 15,
-                          color: paletteFor(option).text,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      option.label,
-                      style: TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: settings.theme == option
-                            ? FontWeight.w600
-                            : FontWeight.w400,
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            child: _ThemeChip(
+              theme: theme,
+              selected: settings.theme == theme,
+              onTap: () => onChanged(settings.copyWith(theme: theme)),
             ),
           ),
+          if (theme != ReaderTheme.values.last) const SizedBox(width: 8),
+        ],
       ],
+    );
+  }
+}
+
+class _ThemeChip extends StatelessWidget {
+  const _ThemeChip({
+    required this.theme,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ReaderTheme theme;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = paletteFor(theme);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: palette.page,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.brass : palette.rule,
+            width: selected ? 2 : 1,
+          ),
+          boxShadow: [
+            if (selected)
+              BoxShadow(
+                color: AppColors.brass.withValues(alpha: 0.35),
+                blurRadius: 8,
+                spreadRadius: 1,
+              ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Text(
+              'Aa',
+              style: TextStyle(
+                fontFamily: kSerif,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: palette.text,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              theme.label,
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                color: palette.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -239,27 +364,19 @@ class _SliderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13.5,
-                  color: theme.colorScheme.onSurface,
-                ),
-              ),
-            ),
+            Text(label, style: const TextStyle(fontSize: 13)),
             Text(
               display,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 12,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+                color: AppColors.brass,
               ),
             ),
           ],
@@ -267,66 +384,22 @@ class _SliderRow extends StatelessWidget {
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             trackHeight: 3,
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            activeTrackColor: AppColors.brass,
+            thumbColor: AppColors.brass,
+            inactiveTrackColor:
+                Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5),
           ),
           child: Slider(
             value: value.clamp(min, max),
             min: min,
             max: max,
             divisions: divisions,
-            label: display,
             onChanged: onChanged,
           ),
         ),
       ],
-    );
-  }
-}
-
-class _PillButton extends StatelessWidget {
-  const _PillButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: selected
-          ? theme.colorScheme.primaryContainer
-          : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.55),
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: selected
-                  ? theme.colorScheme.primary.withValues(alpha: 0.6)
-                  : theme.colorScheme.outline.withValues(alpha: 0.4),
-            ),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-              color: selected
-                  ? theme.colorScheme.onPrimaryContainer
-                  : theme.colorScheme.onSurface,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -105,12 +105,17 @@ class EpubReaderEngine implements ReaderEngine {
     BuildContext context,
     int pageIndex,
     ReaderSettings settings,
-    EdgeInsets safeInsets,
-  ) {
+    EdgeInsets safeInsets, {
+    ValueChanged<SelectedText>? onTextHighlighted,
+    List<BookHighlight> highlights = const <BookHighlight>[],
+    ValueChanged<bool>? onZoomChanged,
+  }) {
     return EpubPageView(
       page: _pages[pageIndex],
       settings: settings,
       safeInsets: safeInsets,
+      onTextHighlighted: onTextHighlighted,
+      highlights: highlights,
     );
   }
 

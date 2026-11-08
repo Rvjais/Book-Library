@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
+
+export 'library_types.dart';
 
 enum BookFormat { pdf, epub }
 
@@ -23,19 +26,29 @@ class ReadingPosition {
   final int page;
   final int offset;
 
-  factory ReadingPosition.fromJson(String? raw) {
-    if (raw == null || raw.isEmpty) return const ReadingPosition();
-    try {
-      final decoded = jsonDecode(raw);
-      if (decoded is Map) {
-        return ReadingPosition(
-          chapter: (decoded['c'] as num?)?.toInt() ?? 0,
-          page: (decoded['p'] as num?)?.toInt() ?? 0,
-          offset: (decoded['o'] as num?)?.toInt() ?? 0,
-        );
+  factory ReadingPosition.fromJson(dynamic raw) {
+    if (raw == null) return const ReadingPosition();
+    if (raw is Map) {
+      return ReadingPosition(
+        chapter: (raw['c'] as num?)?.toInt() ?? 0,
+        page: (raw['p'] as num?)?.toInt() ?? 0,
+        offset: (raw['o'] as num?)?.toInt() ?? 0,
+      );
+    }
+    if (raw is String) {
+      if (raw.isEmpty) return const ReadingPosition();
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return ReadingPosition(
+            chapter: (decoded['c'] as num?)?.toInt() ?? 0,
+            page: (decoded['p'] as num?)?.toInt() ?? 0,
+            offset: (decoded['o'] as num?)?.toInt() ?? 0,
+          );
+        }
+      } catch (_) {
+        // Corrupt position, start from the beginning.
       }
-    } catch (_) {
-      // Corrupt position, start from the beginning.
     }
     return const ReadingPosition();
   }
@@ -63,6 +76,8 @@ class Book {
     required this.position,
     required this.isFavorite,
     required this.isFinished,
+    required this.isShared,
+    required this.contentHash,
     this.description,
     this.language,
   });
@@ -75,6 +90,14 @@ class Book {
   final BookFormat format;
   final int fileSize;
   final String fileHash;
+
+  /// Whether this book is currently being shared on the community network.
+  final bool isShared;
+
+  /// SHA-256 content hash — the stable content identifier for P2P sharing.
+  /// For imported books this equals fileHash; for downloaded books it's the
+  /// hash of the downloaded file.
+  final String contentHash;
 
   /// PDF: number of pages. EPUB: page count from the last pagination pass
   /// (falls back to the number of chapters before the book is opened).
@@ -112,6 +135,8 @@ class Book {
       position: (row['position'] as String?) ?? '{}',
       isFavorite: ((row['is_favorite'] as int?) ?? 0) == 1,
       isFinished: ((row['is_finished'] as int?) ?? 0) == 1,
+      isShared: ((row['is_shared'] as int?) ?? 0) == 1,
+      contentHash: (row['content_hash'] as String?) ?? '',
       description: row['description'] as String?,
       language: row['language'] as String?,
     );
@@ -133,6 +158,8 @@ class Book {
     'position': position,
     'is_favorite': isFavorite ? 1 : 0,
     'is_finished': isFinished ? 1 : 0,
+    'is_shared': isShared ? 1 : 0,
+    'content_hash': contentHash,
     'description': description,
     'language': language,
   };
@@ -146,6 +173,8 @@ class Book {
     BookFormat? format,
     int? fileSize,
     String? fileHash,
+    bool? isShared,
+    String? contentHash,
     int? pageCount,
     int? addedAt,
     int? lastOpenedAt,
@@ -165,6 +194,8 @@ class Book {
       format: format ?? this.format,
       fileSize: fileSize ?? this.fileSize,
       fileHash: fileHash ?? this.fileHash,
+      isShared: isShared ?? this.isShared,
+      contentHash: contentHash ?? this.contentHash,
       pageCount: pageCount ?? this.pageCount,
       addedAt: addedAt ?? this.addedAt,
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
@@ -275,6 +306,110 @@ class Bookmark {
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is Bookmark && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
+}
+
+/// A highlighted excerpt of text in a book with optional note and color.
+class BookHighlight {
+  const BookHighlight({
+    required this.id,
+    required this.bookId,
+    required this.page,
+    required this.chapter,
+    required this.text,
+    required this.note,
+    required this.color,
+    required this.createdAt,
+    this.chapterOffset = 0,
+    this.length = 0,
+  });
+
+  final int id;
+  final int bookId;
+  final int page;
+  final int chapter;
+  final String text;
+  final String note;
+  final int color;
+  final int createdAt;
+
+  /// Character offset of the highlight inside [chapter]. EPUB highlights are
+  /// anchored here so they stay on the right page after re-pagination.
+  final int chapterOffset;
+
+  /// Number of characters covered by the highlight.
+  final int length;
+
+  Color get colorValue => Color(color);
+
+  bool get hasAnchor => length > 0;
+
+  ReadingPosition get position =>
+      ReadingPosition(chapter: chapter, page: page, offset: chapterOffset);
+
+  factory BookHighlight.fromRow(Map<String, Object?> row) {
+    return BookHighlight(
+      id: (row['id'] as int?) ?? 0,
+      bookId: (row['book_id'] as int?) ?? 0,
+      page: (row['page'] as int?) ?? 0,
+      chapter: (row['chapter'] as int?) ?? 0,
+      chapterOffset: (row['chapter_offset'] as int?) ?? 0,
+      length: (row['length'] as int?) ?? 0,
+      text: (row['text'] as String?) ?? '',
+      note: (row['note'] as String?) ?? '',
+      color: (row['color'] as int?) ?? 0xFFFFEB3B,
+      createdAt: (row['created_at'] as int?) ?? 0,
+    );
+  }
+
+  Map<String, Object?> toRow({bool includeId = true}) {
+    final map = <String, Object?>{
+      'book_id': bookId,
+      'page': page,
+      'chapter': chapter,
+      'chapter_offset': chapterOffset,
+      'length': length,
+      'text': text,
+      'note': note,
+      'color': color,
+      'created_at': createdAt,
+    };
+    if (includeId) map['id'] = id;
+    return map;
+  }
+
+  BookHighlight copyWith({
+    int? id,
+    int? bookId,
+    int? page,
+    int? chapter,
+    int? chapterOffset,
+    int? length,
+    String? text,
+    String? note,
+    int? color,
+    int? createdAt,
+  }) {
+    return BookHighlight(
+      id: id ?? this.id,
+      bookId: bookId ?? this.bookId,
+      page: page ?? this.page,
+      chapter: chapter ?? this.chapter,
+      chapterOffset: chapterOffset ?? this.chapterOffset,
+      length: length ?? this.length,
+      text: text ?? this.text,
+      note: note ?? this.note,
+      color: color ?? this.color,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BookHighlight && runtimeType == other.runtimeType && id == other.id;
 
   @override
   int get hashCode => id.hashCode;

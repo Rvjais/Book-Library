@@ -8,13 +8,14 @@ import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
 import '../../data/library_repository.dart';
-import '../../data/library_types.dart';
 import '../../data/models.dart';
 import '../../data/settings_repository.dart';
 import '../common/app_sheet.dart';
 import '../reader/open_book.dart';
+import 'widgets/book_preview.dart';
 import 'widgets/book_sheets.dart';
 import 'widgets/shelf_row.dart';
+import 'widgets/spine_shelf_row.dart';
 import 'widgets/wood_background.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -118,6 +119,29 @@ class _LibraryScreenState extends State<LibraryScreen> {
     _openBook(fresh);
   }
 
+  /// A single tap zooms the book forward instead of leaving the shelf. The
+  /// preview keeps all metadata readable and offers the reading button.
+  Future<void> _previewBook(Book book) async {
+    final action = await showBookPreview(context, book);
+    if (!mounted || action == null) return;
+    if (action == BookPreviewAction.more) {
+      await _showBook(book);
+      return;
+    }
+    await _readBook(book);
+  }
+
+  Future<void> _readBook(Book book) async {
+    final repo = context.read<LibraryRepository>();
+    var fresh = repo.bookById(book.id) ?? book;
+    if (fresh.isFinished) {
+      await repo.restartReading(fresh);
+      if (!mounted) return;
+      fresh = repo.bookById(book.id) ?? fresh;
+    }
+    _openBook(fresh);
+  }
+
   Future<void> _showOptions() async {
     final repo = context.read<LibraryRepository>();
     final settings = context.read<SettingsRepository>();
@@ -143,13 +167,71 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Choose how your books are ordered.',
+                    'Choose the look and order of your shelves.',
                     style: TextStyle(
                       fontSize: 12,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
+                  Text(
+                    'SHELF STYLE',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      letterSpacing: 1.05,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  for (final display in ShelfDisplay.values)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      leading: Icon(
+                        display == ShelfDisplay.covers
+                            ? Icons.auto_stories_rounded
+                            : Icons.view_week_rounded,
+                        size: 20,
+                        color: theme.colorScheme.primary,
+                      ),
+                      title: Text(
+                        display.label,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: settings.shelfDisplay == display
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                      subtitle: Text(
+                        display.description,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      trailing: settings.shelfDisplay == display
+                          ? Icon(
+                              Icons.check_rounded,
+                              color: theme.colorScheme.primary,
+                            )
+                          : null,
+                      onTap: () {
+                        unawaited(settings.setShelfDisplay(display));
+                        setSheetState(() {});
+                      },
+                    ),
+                  const Divider(height: 22),
+                  Text(
+                    'ORDER BOOKS',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      letterSpacing: 1.05,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   for (final mode in SortMode.values)
                     ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -172,26 +254,28 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         setSheetState(() {});
                       },
                     ),
-                  const Divider(height: 22),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Show dates above books',
-                      style: TextStyle(fontSize: 14.5),
-                    ),
-                    subtitle: Text(
-                      'The date you last opened each book.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: theme.colorScheme.onSurfaceVariant,
+                  if (settings.shelfDisplay == ShelfDisplay.covers) ...[
+                    const Divider(height: 22),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Show dates above covers',
+                        style: TextStyle(fontSize: 14.5),
                       ),
+                      subtitle: Text(
+                        'The date you last opened each book.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      value: settings.showShelfDates,
+                      onChanged: (value) {
+                        unawaited(settings.setShowShelfDates(value));
+                        setSheetState(() {});
+                      },
                     ),
-                    value: settings.showShelfDates,
-                    onChanged: (value) {
-                      unawaited(settings.setShowShelfDates(value));
-                      setSheetState(() {});
-                    },
-                  ),
+                  ],
                 ],
               ),
             );
@@ -462,9 +546,34 @@ class _LibraryScreenState extends State<LibraryScreen> {
       );
     }
 
+    final spines = settings.shelfDisplay == ShelfDisplay.spines;
     return LayoutBuilder(
       builder: (context, constraints) {
         final usable = math.max(240.0, constraints.maxWidth - 32);
+
+        if (spines) {
+          final maxHeight = (constraints.maxWidth * 0.40).clamp(136.0, 178.0);
+          final rows = _packSpineRows(books, usable - 10);
+          return ListView.builder(
+            controller: _scroll,
+            padding: const EdgeInsets.fromLTRB(16, 18, 16, 128),
+            itemCount: rows.length,
+            itemBuilder: (context, index) {
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: index == rows.length - 1 ? 0 : 20,
+                ),
+                child: SpineShelfRow(
+                  books: rows[index],
+                  maxHeight: maxHeight,
+                  onOpen: _previewBook,
+                  onLongPress: _showBook,
+                ),
+              );
+            },
+          );
+        }
+
         final columns = (usable / 112).floor().clamp(2, 5);
         final slotWidth = usable / columns;
         final coverWidth = (slotWidth * 0.68).clamp(68.0, 128.0);
@@ -492,7 +601,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 coverWidth: coverWidth,
                 coverHeight: coverHeight,
                 showDates: settings.showShelfDates,
-                onOpen: _openBook,
+                onOpen: _previewBook,
                 onLongPress: _showBook,
               ),
             );
@@ -500,6 +609,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
         );
       },
     );
+  }
+
+  /// Packs books shoulder to shoulder, starting a new board whenever the next
+  /// spine would not fit. Keeps the packed look of a real bookcase.
+  List<List<Book>> _packSpineRows(List<Book> books, double maxWidth) {
+    final rows = <List<Book>>[];
+    var current = <Book>[];
+    var used = 0.0;
+    for (final book in books) {
+      final width = spineWidthFor(book) + spineGap;
+      if (current.isNotEmpty && used + width > maxWidth) {
+        rows.add(current);
+        current = <Book>[];
+        used = 0;
+      }
+      current.add(book);
+      used += width;
+    }
+    if (current.isNotEmpty) rows.add(current);
+    return rows;
   }
 }
 

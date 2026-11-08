@@ -11,10 +11,16 @@ Future<Bookmark?> showBookmarksSheet(
   required Book book,
   required LibraryRepository repo,
   required VoidCallback onChanged,
+  required int Function(Bookmark bookmark) pageFor,
 }) {
   return showAppSheet<Bookmark>(
     context: context,
-    builder: (_) => _BookmarksSheet(book: book, repo: repo, onChanged: onChanged),
+    builder: (_) => _BookmarksSheet(
+      book: book,
+      repo: repo,
+      onChanged: onChanged,
+      pageFor: pageFor,
+    ),
   );
 }
 
@@ -23,11 +29,13 @@ class _BookmarksSheet extends StatefulWidget {
     required this.book,
     required this.repo,
     required this.onChanged,
+    required this.pageFor,
   });
 
   final Book book;
   final LibraryRepository repo;
   final VoidCallback onChanged;
+  final int Function(Bookmark bookmark) pageFor;
 
   @override
   State<_BookmarksSheet> createState() => _BookmarksSheetState();
@@ -200,7 +208,7 @@ class _BookmarksSheetState extends State<_BookmarksSheet> {
                           subtitle: Padding(
                             padding: const EdgeInsets.only(top: 3),
                             child: Text(
-                              'Page ${bookmark.page + 1}  ·  '
+                              'Page ${widget.pageFor(bookmark) + 1}  ·  '
                               '${formatShortDate(bookmark.createdAt)}',
                               style: TextStyle(
                                 fontSize: 10.5,

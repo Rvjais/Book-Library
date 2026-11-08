@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:pdfx/pdfx.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import '../core/formatting.dart';
 import '../core/ids.dart';
@@ -11,7 +12,6 @@ import '../epub/epub_parser.dart';
 import '../services/cover_service.dart';
 import 'book_storage.dart';
 import 'database.dart';
-import 'library_types.dart';
 import 'models.dart';
 import 'settings_repository.dart';
 
@@ -263,6 +263,7 @@ class LibraryRepository extends ChangeNotifier {
 
     final storageId = newId();
     String? path;
+    var coverPath = '';
     try {
       path = await storage.importPickedFile(file, storageId, extension);
       final stored = File(path);
@@ -286,7 +287,6 @@ class LibraryRepository extends ChangeNotifier {
           ? meta.title!.trim()
           : titleFromFileName(file.name);
 
-      var coverPath = '';
       if (meta.cover != null && meta.cover!.isNotEmpty) {
         coverPath = await _covers.save(storage, storageId, meta.cover) ?? '';
       }
@@ -301,6 +301,8 @@ class LibraryRepository extends ChangeNotifier {
         format: isPdf ? BookFormat.pdf : BookFormat.epub,
         fileSize: await stored.length(),
         fileHash: fingerprint,
+        isShared: false,
+        contentHash: fingerprint,
         pageCount: meta.pageCount,
         addedAt: now,
         lastOpenedAt: 0,
@@ -323,6 +325,7 @@ class LibraryRepository extends ChangeNotifier {
     } catch (error) {
       debugPrint('Could not import ${file.name}: $error');
       if (path != null) await storage.deleteQuietly(path);
+      if (coverPath.isNotEmpty) await storage.deleteQuietly(coverPath);
       return const _ImportResult.failed();
     }
   }
@@ -333,24 +336,30 @@ class LibraryRepository extends ChangeNotifier {
     var pages = 0;
     try {
       document = await PdfDocument.openFile(path);
-      pages = document.pagesCount;
+      pages = document.pages.length;
       if (pages > 0) {
-        final page = await document.getPage(1);
-        try {
-          final ratio = page.width <= 0 ? 1.5 : page.height / page.width;
-          final rendered = await page.render(
-            width: 900,
-            height: 900 * ratio,
-            format: PdfPageImageFormat.jpeg,
-            quality: 86,
-          );
-          cover = rendered?.bytes;
-        } finally {
-          await page.close();
+        final page = document.pages[0];
+        final ratio = page.width <= 0 ? 1.5 : page.height / page.width;
+        final rendered = await page.render(
+          width: 900,
+          height: (900 * ratio).round(),
+        );
+        if (rendered != null) {
+          try {
+            final uiImage = await rendered.createImage();
+            final byteData = await uiImage.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            if (byteData != null) {
+              cover = byteData.buffer.asUint8List();
+            }
+          } finally {
+            rendered.dispose();
+          }
         }
       }
     } finally {
-      await document?.close();
+      await document?.dispose();
     }
     return _Metadata(pageCount: pages, cover: cover);
   }
@@ -411,10 +420,13 @@ class LibraryRepository extends ChangeNotifier {
 
   Future<void> setFinished(Book book, bool value) async {
     final current = bookById(book.id) ?? book;
+    // Marking a book un-finished keeps the reader where they were. Only the
+    // finished flag and progress need to change, never the saved position.
     final updated = current.copyWith(
       isFinished: value,
-      progress: value ? 1 : 0,
-      position: value ? current.position : const ReadingPosition().toJson(),
+      progress: value
+          ? 1
+          : (current.progress >= 0.995 ? 0.99 : current.progress),
     );
     await _persist(updated);
     _replace(updated);
@@ -462,8 +474,11 @@ class LibraryRepository extends ChangeNotifier {
     final current = bookById(book.id) ?? book;
     final path = await _covers.save(storage, '${current.id}', bytes);
     if (path == null) return false;
-    await storage.deleteQuietly(current.coverPath);
+    final previous = current.coverPath;
+    // Point the row at the new file first; only then remove the old one so a
+    // database failure can never leave the book referring to a deleted cover.
     await updateCover(current, path);
+    await storage.deleteQuietly(previous);
     return true;
   }
 
@@ -476,8 +491,9 @@ class LibraryRepository extends ChangeNotifier {
       if (meta.cover == null) return false;
       final path = await _covers.save(storage, newId(), meta.cover);
       if (path == null) return false;
-      await storage.deleteQuietly(book.coverPath);
+      final previous = book.coverPath;
       await updateCover(book, path);
+      await storage.deleteQuietly(previous);
       return true;
     } catch (error) {
       debugPrint('Could not regenerate cover: $error');
@@ -496,6 +512,7 @@ class LibraryRepository extends ChangeNotifier {
 
   Future<void> deleteEverything() async {
     final db = await _database.instance;
+    await db.delete('highlights');
     await db.delete('bookmarks');
     await db.delete('books');
     _books = const <Book>[];
@@ -520,6 +537,71 @@ class LibraryRepository extends ChangeNotifier {
   }
 
   Future<int> storageBytes() => storage.usedBytes();
+
+  /// Import a file that was already downloaded (e.g. from P2P transfer) into
+  /// the library. The file must already exist at [filePath].
+  Future<Book> importDownloadedBook({
+    required int id,
+    required String title,
+    required String author,
+    required String filePath,
+    required String coverPath,
+    required BookFormat format,
+    required int fileSize,
+    required String fileHash,
+    required bool isShared,
+    required String contentHash,
+    String? description,
+    String? language,
+  }) async {
+    final stored = File(filePath);
+    if (!await stored.exists()) {
+      throw StateError('Downloaded file not found: $filePath');
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final book = Book(
+      id: id,
+      title: title,
+      author: author,
+      filePath: filePath,
+      coverPath: coverPath,
+      format: format,
+      fileSize: fileSize,
+      fileHash: fileHash,
+      isShared: isShared,
+      contentHash: contentHash,
+      pageCount: 0,
+      addedAt: now,
+      lastOpenedAt: 0,
+      progress: 0,
+      position: '{}',
+      isFavorite: false,
+      isFinished: false,
+      description: description,
+      language: language,
+    );
+
+    final db = await _database.instance;
+    final row = book.toRow()..remove('id');
+    final insertedId = await db.insert('books', row);
+    final saved = book.withId(insertedId);
+
+    _books = <Book>[saved, ..._books];
+    notifyListeners();
+    return saved;
+  }
+
+  /// Enable or disable sharing for a book. When disabled, the P2P service
+  /// should withdraw the advertisement.
+  Future<void> setBookSharing(Book book, bool value) async {
+    final current = bookById(book.id) ?? book;
+    if (current.isShared == value) return;
+    final updated = current.copyWith(isShared: value);
+    await _persist(updated);
+    _replace(updated);
+    notifyListeners();
+  }
 
   // ---------------------------------------------------------------- bookmarks
 
@@ -569,6 +651,62 @@ class LibraryRepository extends ChangeNotifier {
   Future<void> deleteBookmark(int bookmarkId) async {
     final db = await _database.instance;
     await db.delete('bookmarks', where: 'id = ?', whereArgs: [bookmarkId]);
+  }
+
+  // ---------------------------------------------------------------- highlights
+
+  Future<List<BookHighlight>> highlightsFor(int bookId) async {
+    final db = await _database.instance;
+    final rows = await db.query(
+      'highlights',
+      where: 'book_id = ?',
+      whereArgs: [bookId],
+      orderBy: 'page ASC, created_at DESC',
+    );
+    return rows.map(BookHighlight.fromRow).toList();
+  }
+
+  Future<BookHighlight> addHighlight({
+    required Book book,
+    required int page,
+    int chapter = 0,
+    int chapterOffset = 0,
+    int length = 0,
+    required String text,
+    String note = '',
+    int color = 0xFFFFEB3B,
+  }) async {
+    final db = await _database.instance;
+    final highlight = BookHighlight(
+      id: 0,
+      bookId: book.id,
+      page: page,
+      chapter: chapter,
+      chapterOffset: chapterOffset,
+      length: length,
+      text: text,
+      note: note,
+      color: color,
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+    );
+    final row = highlight.toRow(includeId: false);
+    final id = await db.insert('highlights', row);
+    return BookHighlight.fromRow(<String, Object?>{...row, 'id': id});
+  }
+
+  Future<void> updateHighlightNote(BookHighlight highlight, String note) async {
+    final db = await _database.instance;
+    await db.update(
+      'highlights',
+      {'note': note},
+      where: 'id = ?',
+      whereArgs: [highlight.id],
+    );
+  }
+
+  Future<void> deleteHighlight(int highlightId) async {
+    final db = await _database.instance;
+    await db.delete('highlights', where: 'id = ?', whereArgs: [highlightId]);
   }
 
   // ------------------------------------------------------------------ helpers

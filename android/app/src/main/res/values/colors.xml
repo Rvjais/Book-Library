@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the Flutter boot splash so there is no white flash between the
+         native launch window and the first Flutter frame. -->
+    <color name="launch_background">#2B1A0E</color>
+</resources>

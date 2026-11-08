@@ -3,10 +3,13 @@ import 'package:provider/provider.dart';
 
 import 'core/app_theme.dart';
 import 'data/settings_repository.dart';
+import 'features/identity/data/peer_identity.dart';
 import 'features/home/home_shell.dart';
 
 class LibReadyApp extends StatelessWidget {
-  const LibReadyApp({super.key});
+  const LibReadyApp({super.key, required this.identity});
+
+  final IdentityRepository identity;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +26,7 @@ class LibReadyApp extends StatelessWidget {
           child: child ?? const SizedBox.shrink(),
         );
       },
-      home: const HomeShell(),
+      home: HomeShell(identity: identity),
     );
   }
 }

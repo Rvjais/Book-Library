@@ -3,24 +3,22 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-/// Paints a page that is being peeled away.
+/// Paints a page peeling realistically at any diagonal drag angle.
 ///
-/// [progress] goes from 0 (page flat) to 1 (page completely turned). The layer
-/// is a bitmap of the page being turned; the destination page is already
-/// painted underneath by `BookPager`.
-///
-/// With [fromLeft] the page peels from the left edge instead of the right,
-/// which is what a backwards page turn looks like.
+/// [progress] goes from 0 (flat) to 1 (turned).
+/// [dragAngle] is the normalized vertical drag direction (-1.0 top corner, +1.0 bottom corner).
 class PageCurlPainter extends CustomPainter {
   PageCurlPainter({
     required this.image,
     required this.progress,
     this.fromLeft = false,
+    this.dragAngle = 0.0,
   });
 
   final ui.Image image;
   final double progress;
   final bool fromLeft;
+  final double dragAngle;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -39,28 +37,39 @@ class PageCurlPainter extends CustomPainter {
     }
     if (t >= 0.998) return;
 
-    // Distance of the fold line from the edge the page is peeled from.
+    // Angle curl tilt offset based on where user grabbed the page (top/bottom)
+    final tilt = dragAngle.clamp(-0.85, 0.85) * (1 - t) * 45.0;
+
+    // Distance of fold line from peeling edge
     final fold = width * (1 - t);
     final flapWidth = width - fold;
-    // Position of the fold measured from the left of the screen.
     final foldX = fromLeft ? width - fold : fold;
-    // Position of the flap's free edge in screen coordinates.
     final freeEdge = fromLeft ? foldX + flapWidth : foldX - flapWidth;
 
-    // The part of the sheet still lying flat.
+    // 1. The part of the sheet still lying flat
     canvas.save();
+    final flatPath = Path();
     if (fromLeft) {
-      canvas.clipRect(Rect.fromLTWH(foldX, 0, width - foldX, height));
+      flatPath.moveTo(foldX + tilt * 0.5, 0);
+      flatPath.lineTo(width, 0);
+      flatPath.lineTo(width, height);
+      flatPath.lineTo(foldX - tilt * 0.5, height);
+      flatPath.close();
     } else {
-      canvas.clipRect(Rect.fromLTWH(0, 0, foldX, height));
+      flatPath.moveTo(0, 0);
+      flatPath.lineTo(foldX - tilt * 0.5, 0);
+      flatPath.lineTo(foldX + tilt * 0.5, height);
+      flatPath.lineTo(0, height);
+      flatPath.close();
     }
+    canvas.clipPath(flatPath);
     _drawWhole(canvas, size, imagePaint);
     canvas.restore();
 
-    // Shadow cast onto the flat page by the lifted sheet.
+    // 2. Realistic depth shadow on the flat page cast by the lifted curling sheet
     final flatWidth = fromLeft ? width - foldX : foldX;
     if (flatWidth > 2) {
-      final shadowWidth = math.min(flatWidth, width * 0.12);
+      final shadowWidth = math.min(flatWidth, width * 0.16);
       final rect = fromLeft
           ? Rect.fromLTWH(foldX, 0, shadowWidth, height)
           : Rect.fromLTWH(foldX - shadowWidth, 0, shadowWidth, height);
@@ -71,7 +80,7 @@ class PageCurlPainter extends CustomPainter {
             begin: fromLeft ? Alignment.centerLeft : Alignment.centerRight,
             end: fromLeft ? Alignment.centerRight : Alignment.centerLeft,
             colors: [
-              Colors.black.withValues(alpha: 0.34),
+              Colors.black.withValues(alpha: 0.38),
               Colors.black.withValues(alpha: 0),
             ],
           ).createShader(rect),
@@ -80,10 +89,10 @@ class PageCurlPainter extends CustomPainter {
 
     if (flapWidth <= 0.5) return;
 
-    // Soft shadow under the free edge.
+    // 3. Soft ambient shadow under the free curl edge
     final hasRoomForEdge = fromLeft ? freeEdge < width - 2 : freeEdge > 2;
     if (hasRoomForEdge) {
-      final shadowWidth = math.min(28.0, math.max(10.0, flapWidth * 0.35));
+      final shadowWidth = math.min(32.0, math.max(12.0, flapWidth * 0.4));
       final left = fromLeft ? freeEdge : freeEdge - shadowWidth;
       final rect = Rect.fromLTWH(left, 0, shadowWidth, height);
       if (rect.width > 1) {
@@ -94,7 +103,7 @@ class PageCurlPainter extends CustomPainter {
               begin: fromLeft ? Alignment.centerLeft : Alignment.centerRight,
               end: fromLeft ? Alignment.centerRight : Alignment.centerLeft,
               colors: [
-                Colors.black.withValues(alpha: 0.22),
+                Colors.black.withValues(alpha: 0.26),
                 Colors.black.withValues(alpha: 0),
               ],
             ).createShader(rect),
@@ -102,7 +111,7 @@ class PageCurlPainter extends CustomPainter {
       }
     }
 
-    // The flap itself, mirrored about the fold line.
+    // 4. The curled flap, mirrored and angled naturally
     canvas.save();
     if (fromLeft) {
       canvas.translate(foldX + flapWidth, 0);
@@ -110,6 +119,10 @@ class PageCurlPainter extends CustomPainter {
       canvas.translate(foldX, 0);
     }
     canvas.scale(-1, 1);
+
+    // Apply angular paper curl skew
+    final skewAngle = (tilt / height) * 0.5;
+    canvas.transform(Matrix4.skewY(skewAngle).storage);
 
     final scale = image.width / width;
     final srcLeft = fromLeft ? 0.0 : fold * scale;
@@ -129,7 +142,7 @@ class PageCurlPainter extends CustomPainter {
       );
     }
 
-    // Shading across the folded paper.
+    // Shading across the curved cylindrical page roll
     final flapRect = Rect.fromLTWH(0, 0, flapWidth, height);
     canvas.drawRect(
       flapRect,
@@ -139,28 +152,28 @@ class PageCurlPainter extends CustomPainter {
           end: Alignment.centerRight,
           colors: fromLeft
               ? [
-                  Colors.white.withValues(alpha: 0.10),
-                  Colors.black.withValues(alpha: 0.08),
-                  Colors.black.withValues(alpha: 0.32),
+                  Colors.white.withValues(alpha: 0.16),
+                  Colors.black.withValues(alpha: 0.09),
+                  Colors.black.withValues(alpha: 0.38),
                 ]
               : [
-                  Colors.black.withValues(alpha: 0.32),
-                  Colors.black.withValues(alpha: 0.08),
-                  Colors.white.withValues(alpha: 0.10),
+                  Colors.black.withValues(alpha: 0.38),
+                  Colors.black.withValues(alpha: 0.09),
+                  Colors.white.withValues(alpha: 0.16),
                 ],
-          stops: const [0, 0.62, 1],
+          stops: const [0, 0.58, 1],
         ).createShader(flapRect),
     );
     canvas.restore();
 
-    // Highlight on the crease.
+    // Crease and specular highlight along the rolling cylinder ridge
     canvas.drawRect(
-      Rect.fromLTWH(math.max(0, foldX - 1.1), 0, 2.2, height),
-      Paint()..color = Colors.white.withValues(alpha: 0.26),
+      Rect.fromLTWH(math.max(0, foldX - 1.2), 0, 2.4, height),
+      Paint()..color = Colors.white.withValues(alpha: 0.32),
     );
     canvas.drawRect(
-      Rect.fromLTWH(math.max(0, foldX - 2.6), 0, 1.2, height),
-      Paint()..color = Colors.black.withValues(alpha: 0.18),
+      Rect.fromLTWH(math.max(0, foldX - 2.8), 0, 1.4, height),
+      Paint()..color = Colors.black.withValues(alpha: 0.20),
     );
   }
 
@@ -177,5 +190,6 @@ class PageCurlPainter extends CustomPainter {
   bool shouldRepaint(covariant PageCurlPainter oldDelegate) =>
       oldDelegate.image != image ||
       oldDelegate.progress != progress ||
-      oldDelegate.fromLeft != fromLeft;
+      oldDelegate.fromLeft != fromLeft ||
+      oldDelegate.dragAngle != dragAngle;
 }

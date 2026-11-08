@@ -4,6 +4,8 @@ import '../core/app_theme.dart';
 
 enum ReaderTheme { light, sepia, dark, black }
 
+enum PageTexture { none, parchment, handmade, cloth }
+
 enum PageTurnStyle { curl, flip, slide, fade, none }
 
 extension ReaderThemeLabel on ReaderTheme {
@@ -17,6 +19,34 @@ extension ReaderThemeLabel on ReaderTheme {
         return 'Night';
       case ReaderTheme.black:
         return 'Black';
+    }
+  }
+}
+
+extension PageTextureLabel on PageTexture {
+  String get label {
+    switch (this) {
+      case PageTexture.none:
+        return 'Smooth';
+      case PageTexture.parchment:
+        return 'Parchment';
+      case PageTexture.handmade:
+        return 'Deckle/Linen';
+      case PageTexture.cloth:
+        return 'Book Cloth';
+    }
+  }
+
+  String get description {
+    switch (this) {
+      case PageTexture.none:
+        return 'Clean, solid paper without grain.';
+      case PageTexture.parchment:
+        return 'Classic subtle aged fiber and fleck paper texture.';
+      case PageTexture.handmade:
+        return 'Tactile organic handmade paper with visible grain.';
+      case PageTexture.cloth:
+        return 'Woven textile book-cloth weave pattern.';
     }
   }
 }
@@ -112,6 +142,7 @@ ReaderPalette paletteFor(ReaderTheme theme) {
 class ReaderSettings {
   const ReaderSettings({
     this.theme = ReaderTheme.sepia,
+    this.texture = PageTexture.parchment,
     this.fontSize = 19,
     this.lineHeight = 1.55,
     this.margins = 24,
@@ -123,6 +154,7 @@ class ReaderSettings {
   });
 
   final ReaderTheme theme;
+  final PageTexture texture;
   final double fontSize;
   final double lineHeight;
   final double margins;
@@ -151,8 +183,24 @@ class ReaderSettings {
     );
   }
 
+  /// Style used while measuring and laying out text.
+  ///
+  /// It deliberately carries **no colour**: the page is recoloured from
+  /// [palette] at paint time, so switching theme does not require the whole
+  /// book to be paginated again (and never leaves stale text colours behind).
+  TextStyle layoutTextStyle({double scale = 1, FontWeight? weight}) {
+    return TextStyle(
+      fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
+      fontSize: fontSize * scale,
+      height: lineHeight,
+      fontWeight: weight,
+    );
+  }
+
   ReaderSettings copyWith({
     ReaderTheme? theme,
+    PageTexture? texture,
     double? fontSize,
     double? lineHeight,
     double? margins,
@@ -164,6 +212,7 @@ class ReaderSettings {
   }) {
     return ReaderSettings(
       theme: theme ?? this.theme,
+      texture: texture ?? this.texture,
       fontSize: fontSize ?? this.fontSize,
       lineHeight: lineHeight ?? this.lineHeight,
       margins: margins ?? this.margins,

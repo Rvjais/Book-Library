@@ -1,8 +1,9 @@
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:pdfx/pdfx.dart';
+import 'package:pdfrx/pdfrx.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/app_theme.dart';
@@ -11,6 +12,7 @@ import '../../../data/library_repository.dart';
 import '../../../data/models.dart';
 import '../../../epub/epub_models.dart';
 import '../../../epub/epub_parser.dart';
+import '../../../features/p2p/p2p_service.dart';
 import '../../common/app_sheet.dart';
 import 'book_cover_view.dart';
 
@@ -59,6 +61,31 @@ class _BookSheetState extends State<_BookSheet> {
         _book = _repo.bookById(_book.id) ?? _book.copyWith(isFinished: next));
   }
 
+  Future<void> _toggleSharing() async {
+    final p2p = context.read<P2pService>();
+    final next = !_book.isShared;
+    await _repo.setBookSharing(_book, next);
+    if (!mounted) return;
+    setState(() =>
+        _book = _repo.bookById(_book.id) ?? _book.copyWith(isShared: next));
+
+    if (next) {
+      // Advertise to the network
+      await p2p.advertiseBook(
+        contentHash: _book.contentHash,
+        title: _book.title,
+        author: _book.author,
+        format: _book.isPdf ? 'pdf' : 'epub',
+        fileSize: _book.fileSize,
+      );
+      if (mounted) showToast(context, 'Sharing "${_book.title}" to the community.');
+    } else {
+      // Withdraw from network
+      await p2p.withdrawBook(_book.contentHash);
+      if (mounted) showToast(context, 'Stopped sharing "${_book.title}".');
+    }
+  }
+
   Future<void> _editTitle() async {
     final controller = TextEditingController(text: _book.title);
     final nextTitle = await showDialog<String>(
@@ -86,6 +113,7 @@ class _BookSheetState extends State<_BookSheet> {
         ],
       ),
     );
+    controller.dispose();
     if (nextTitle == null || nextTitle.isEmpty || !mounted) return;
 
     await _repo.updateMetadata(_book, title: nextTitle);
@@ -154,21 +182,27 @@ class _BookSheetState extends State<_BookSheet> {
       final doc = await PdfDocument.openFile(_book.filePath);
       Uint8List? renderedBytes;
       try {
-        final page = await doc.getPage(pageNumber);
-        try {
-          final ratio = page.width <= 0 ? 1.5 : page.height / page.width;
-          final rendered = await page.render(
-            width: 900,
-            height: 900 * ratio,
-            format: PdfPageImageFormat.jpeg,
-            quality: 88,
-          );
-          renderedBytes = rendered?.bytes;
-        } finally {
-          await page.close();
+        final page = doc.pages[pageNumber - 1];
+        final ratio = page.width <= 0 ? 1.5 : page.height / page.width;
+        final rendered = await page.render(
+          width: 900,
+          height: (900 * ratio).round(),
+        );
+        if (rendered != null) {
+          try {
+            final uiImage = await rendered.createImage();
+            final byteData = await uiImage.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            if (byteData != null) {
+              renderedBytes = byteData.buffer.asUint8List();
+            }
+          } finally {
+            rendered.dispose();
+          }
         }
       } finally {
-        await doc.close();
+        await doc.dispose();
       }
 
       if (renderedBytes != null) {
@@ -447,6 +481,19 @@ class _BookSheetState extends State<_BookSheet> {
             title: _book.isFinished ? 'Mark as unread' : 'Mark as finished',
             onTap: _toggleFinished,
           ),
+          _SheetAction(
+            icon: _book.isShared
+                ? Icons.wifi_tethering_rounded
+                : Icons.wifi_tethering_outlined,
+            iconColor: _book.isShared ? AppColors.brass : null,
+            title: _book.isShared
+                ? 'Stop sharing to community'
+                : 'Share to community',
+            subtitle: _book.isShared
+                ? 'Your device is serving this book'
+                : 'Make this book available to other LibReady users',
+            onTap: _busy == null ? _toggleSharing : null,
+          ),
           const Divider(height: 18),
           _SheetAction(
             icon: Icons.auto_stories_outlined,
@@ -500,6 +547,7 @@ class _SheetAction extends StatelessWidget {
     required this.onTap,
     this.iconColor,
     this.titleColor,
+    this.subtitle,
   });
 
   final IconData icon;
@@ -507,6 +555,7 @@ class _SheetAction extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? iconColor;
   final Color? titleColor;
+  final String? subtitle;
 
   @override
   Widget build(BuildContext context) {
@@ -523,6 +572,15 @@ class _SheetAction extends StatelessWidget {
         title,
         style: TextStyle(fontSize: 14, color: titleColor ?? foreground),
       ),
+      subtitle: subtitle == null
+          ? null
+          : Text(
+              subtitle!,
+              style: TextStyle(
+                fontSize: 11.5,
+                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              ),
+            ),
       trailing: Icon(
         Icons.chevron_right_rounded,
         size: 18,
@@ -564,25 +622,31 @@ class _PickPdfPageDialogState extends State<_PickPdfPageDialog> {
     setState(() => _loading = true);
     try {
       _doc ??= await PdfDocument.openFile(widget.filePath);
-      final p = await _doc!.getPage(pageNum);
-      try {
+      if (pageNum >= 1 && pageNum <= _doc!.pages.length) {
+        final p = _doc!.pages[pageNum - 1];
         final ratio = p.width <= 0 ? 1.5 : p.height / p.width;
-        final res = await p.render(
-          width: 320,
-          height: 320 * ratio,
-          format: PdfPageImageFormat.jpeg,
-          quality: 75,
+        const targetW = 320;
+        final targetH = (320 * ratio).round();
+        final pdfImage = await p.render(
+          width: targetW,
+          height: targetH,
         );
-        if (mounted) {
-          setState(() {
-            _selectedPage = pageNum;
-            _previewBytes = res?.bytes;
-            _loading = false;
-          });
+        if (pdfImage != null) {
+          final uiImg = await pdfImage.createImage();
+          pdfImage.dispose();
+          final byteData = await uiImg.toByteData(format: ui.ImageByteFormat.png);
+          uiImg.dispose();
+          if (mounted && byteData != null) {
+            setState(() {
+              _selectedPage = pageNum;
+              _previewBytes = byteData.buffer.asUint8List();
+              _loading = false;
+            });
+            return;
+          }
         }
-      } finally {
-        await p.close();
       }
+      if (mounted) setState(() => _loading = false);
     } catch (_) {
       if (mounted) setState(() => _loading = false);
     }
@@ -590,7 +654,7 @@ class _PickPdfPageDialogState extends State<_PickPdfPageDialog> {
 
   @override
   void dispose() {
-    _doc?.close();
+    _doc?.dispose();
     _pageInput.dispose();
     super.dispose();
   }

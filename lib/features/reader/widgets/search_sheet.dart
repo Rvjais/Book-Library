@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../core/app_theme.dart';
@@ -33,9 +35,11 @@ class _SearchSheetState extends State<_SearchSheet> {
   String _query = '';
   bool _searched = false;
   int _token = 0;
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -96,7 +100,16 @@ class _SearchSheetState extends State<_SearchSheet> {
             textInputAction: TextInputAction.search,
             onSubmitted: _search,
             onChanged: (value) {
-              if (value.trim().length >= 2) _search(value);
+              _debounce?.cancel();
+              if (value.trim().length < 2) {
+                _search(value);
+                return;
+              }
+              // Searching lowercases every chapter; wait for a pause in typing.
+              _debounce = Timer(
+                const Duration(milliseconds: 260),
+                () => _search(value),
+              );
             },
             decoration: const InputDecoration(
               isDense: true,

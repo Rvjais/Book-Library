@@ -208,10 +208,14 @@ class _ShelfBookState extends State<_ShelfBook> {
                       ),
                     ],
                   ),
-                  child: BookCoverView(
-                    book: widget.book,
-                    width: widget.coverWidth,
-                    height: widget.coverHeight,
+                  // Covers stack many gradients and shadows; keep them out of
+                  // the shelf's repaint path during scrolling and sheets.
+                  child: RepaintBoundary(
+                    child: BookCoverView(
+                      book: widget.book,
+                      width: widget.coverWidth,
+                      height: widget.coverHeight,
+                    ),
                   ),
                 ),
               ],

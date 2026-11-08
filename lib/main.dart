@@ -1,24 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import 'app.dart';
-import 'data/library_repository.dart';
-import 'data/settings_repository.dart';
+import 'features/boot/boot_splash.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  final settings = await SettingsRepository.load();
-  final library = LibraryRepository(settings: settings);
-  await library.init();
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider<SettingsRepository>.value(value: settings),
-        ChangeNotifierProvider<LibraryRepository>.value(value: library),
-      ],
-      child: const LibReadyApp(),
-    ),
-  );
+  runApp(const LibReadyBootstrap());
 }

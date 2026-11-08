@@ -17,11 +17,20 @@ class PageTextItem extends PageItem {
     required super.spacingBefore,
     required this.align,
     required this.indent,
+    required this.chapterStart,
+    required this.charLength,
   });
 
   final TextSpan span;
   final TextAlign align;
   final double indent;
+
+  /// Character offset (inside the chapter) of this item's first character.
+  /// Used to anchor bookmarks and highlights so they survive re-pagination.
+  final int chapterStart;
+
+  /// Number of characters in [span].
+  final int charLength;
 }
 
 class PageImageItem extends PageItem {
@@ -81,6 +90,10 @@ class Paginator {
     required this.height,
   });
 
+  /// Sentinel colour used for link runs. The page view swaps it for the
+  /// palette accent at paint time, so links follow the active theme.
+  static const Color linkColor = Color(0xFF00FF01);
+
   final ReaderSettings settings;
   final double width;
   final double height;
@@ -134,7 +147,7 @@ class Paginator {
         cursor = block.offset;
         final metrics = _metricsFor(block.kind);
         final baseStyle = settings
-            .textStyle(
+            .layoutTextStyle(
               scale: metrics.scale,
               weight: metrics.bold ? FontWeight.w700 : null,
             )
@@ -211,6 +224,8 @@ class Paginator {
               spacingBefore: draft.items.isEmpty ? 0 : before,
               align: settings.textAlign,
               indent: indent,
+              chapterStart: block.offset + consumed,
+              charLength: endInBlock - consumed,
             ),
           );
           draft.used += (draft.items.length == 1 ? 0 : before) + fragmentPainter.height;
@@ -313,7 +328,10 @@ class Paginator {
       style = style.copyWith(fontFamily: 'monospace', fontFamilyFallback: const ['Courier New', 'monospace']);
     }
     if (run.link) {
-      style = style.copyWith(color: settings.palette.accent, decoration: TextDecoration.underline);
+      style = style.copyWith(
+        color: Paginator.linkColor,
+        decoration: TextDecoration.underline,
+      );
     }
     return style;
   }

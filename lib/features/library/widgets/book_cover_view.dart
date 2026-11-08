@@ -74,19 +74,9 @@ class BookCoverView extends StatelessWidget {
                   ],
                   stops: [0.0, 0.25, 0.5, 0.75, 1.0],
                 ),
-                border: Border(
-                  right: BorderSide(
-                    color: Colors.black.withValues(alpha: 0.22),
-                    width: 0.6,
-                  ),
-                  top: BorderSide(
-                    color: Colors.black.withValues(alpha: 0.12),
-                    width: 0.4,
-                  ),
-                  bottom: BorderSide(
-                    color: Colors.black.withValues(alpha: 0.25),
-                    width: 0.5,
-                  ),
+                border: Border.all(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  width: 0.5,
                 ),
               ),
             ),

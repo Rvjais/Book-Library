@@ -1,10 +1,7 @@
-// ignore_for_file: unused_import
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:pdfx/pdfx.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_theme.dart';
@@ -17,8 +14,10 @@ import '../common/app_sheet.dart';
 import '../../reader/engines/epub_engine.dart';
 import '../../reader/engines/pdf_engine.dart';
 import '../../reader/engines/reader_engine.dart';
+import '../../reader/views/zoomable_page.dart';
 import '../../reader/widgets/book_pager.dart';
 import 'widgets/bookmarks_sheet.dart';
+import 'widgets/highlights_sheet.dart';
 import 'widgets/reader_dialogs.dart';
 import 'widgets/reader_settings_sheet.dart';
 import 'widgets/search_sheet.dart';
@@ -33,35 +32,39 @@ class ReaderScreen extends StatefulWidget {
   State<ReaderScreen> createState() => _ReaderScreenState();
 }
 
-class _ReaderScreenState extends State<ReaderScreen> {
+class _ReaderScreenState extends State<ReaderScreen>
+    with WidgetsBindingObserver {
   late final LibraryRepository _library;
   late final SettingsRepository _settingsRepo;
 
-  ReaderSettings _settings = const ReaderSettings();
   ReaderEngine? _engine;
   int _pageIndex = 0;
-
-  bool _booted = false;
   bool _loading = true;
   bool _refreshing = false;
-  bool _chromeVisible = true;
-  bool _closing = false;
-  String? _error;
   double _layoutProgress = 0;
-  int _generation = 0;
+  String? _error;
+
+  ReaderSettings _settings = const ReaderSettings();
+  List<Bookmark> _bookmarks = const <Bookmark>[];
+  List<BookHighlight> _highlights = const <BookHighlight>[];
+
+  bool _chromeVisible = false;
+  bool _zoomed = false;
+  double? _sliderValue;
 
   Size? _openedSize;
   EdgeInsets? _openedInsets;
+  int _generation = 0;
 
   Timer? _saveTimer;
   Timer? _settingsTimer;
-  double? _sliderValue;
-
-  List<Bookmark> _bookmarks = const <Bookmark>[];
+  Timer? _settingsPersistTimer;
+  bool _closing = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _library = context.read<LibraryRepository>();
     _settingsRepo = context.read<SettingsRepository>();
     _settings = _settingsRepo.reader;
@@ -70,48 +73,88 @@ class _ReaderScreenState extends State<ReaderScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_booted) {
-      _booted = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_openEngine());
-      });
-      return;
-    }
-    if (!widget.book.isEpub || _engine == null || _loading) return;
     final size = MediaQuery.sizeOf(context);
     final insets = MediaQuery.paddingOf(context);
-    if (_layoutChanged(size, insets)) {
-      unawaited(_reopenForLayout());
+
+    if (_openedSize == null) {
+      unawaited(_openEngine());
+      return;
+    }
+
+    if (_engine != null &&
+        widget.book.isEpub &&
+        (_openedSize != size || _openedInsets != insets)) {
+      _reopenForLayout();
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _saveTimer?.cancel();
     _settingsTimer?.cancel();
-    final engine = _engine;
-    if (engine != null) unawaited(engine.dispose());
+    _settingsPersistTimer?.cancel();
+    _engine?.dispose();
     super.dispose();
   }
 
-  bool _layoutChanged(Size size, EdgeInsets insets) {
-    final oldSize = _openedSize;
-    if (oldSize == null) return true;
-    return (oldSize.width - size.width).abs() > 1 ||
-        (oldSize.height - size.height).abs() > 1 ||
-        _openedInsets != insets;
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.detached) {
+      // Best-effort flush: the process can be killed without another frame,
+      // so never rely on the debounce timer for the last position.
+      _saveTimer?.cancel();
+      _settingsPersistTimer?.cancel();
+      unawaited(_persistProgress());
+      unawaited(_settingsRepo.updateReader(_settings));
+    }
   }
 
-  Size _contentSize(Size size, EdgeInsets insets) {
-    final width = math.max(
-      120.0,
-      size.width - insets.horizontal - _settings.margins * 2,
-    );
-    final height = math.max(
-      120.0,
-      size.height - insets.vertical - _settings.margins * 0.9 * 2,
-    );
-    return Size(width, height);
+  /// Space the paginator may use. It must match the padding applied by
+  /// [EpubPageView] exactly, or pages are measured larger than they can be
+  /// drawn and the last line/image gets clipped at the bottom.
+  Size _contentSize(Size screen, EdgeInsets insets) {
+    final margins = _settings.margins;
+    final width = screen.width - insets.horizontal - margins * 2;
+    // EpubPageView uses 0.9 * margins above and below the text.
+    final height = screen.height - insets.vertical - margins * 0.9 * 2;
+    return Size(math.max(160.0, width), math.max(220.0, height));
+  }
+
+  Future<void> _loadBookmarks() async {
+    final results = await _library.bookmarksFor(widget.book.id);
+    final highResults = await _library.highlightsFor(widget.book.id);
+    if (!mounted) return;
+    setState(() {
+      _bookmarks = results;
+      _highlights = highResults;
+    });
+  }
+
+  Bookmark? get _bookmarkHere {
+    final engine = _engine;
+    if (engine == null) return null;
+    for (final bookmark in _bookmarks) {
+      if (engine.pageForPosition(bookmark.position) == _pageIndex) {
+        return bookmark;
+      }
+    }
+    return null;
+  }
+
+  bool get _hasHighlightHere {
+    final engine = _engine;
+    if (engine == null) return false;
+    return _highlights.any((h) => _pageForHighlight(engine, h) == _pageIndex);
+  }
+
+  /// Resolves an anchored highlight to its page; legacy rows fall back to the
+  /// page they were saved on.
+  int _pageForHighlight(ReaderEngine engine, BookHighlight highlight) {
+    if (!highlight.hasAnchor) return highlight.page;
+    return engine.pageForPosition(highlight.position);
   }
 
   Future<void> _openEngine({ReadingPosition? at}) async {
@@ -159,6 +202,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
       setState(() {
         _engine = engine;
         _pageIndex = page;
+        _zoomed = false;
         _loading = false;
         _refreshing = false;
         _error = null;
@@ -193,8 +237,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _applySettings(ReaderSettings value) {
     final previous = _settings;
     setState(() => _settings = value);
-    unawaited(_settingsRepo.updateReader(value));
 
+    // Sliders fire on every tick; coalesce the SharedPreferences writes.
+    _settingsPersistTimer?.cancel();
+    _settingsPersistTimer = Timer(
+      const Duration(milliseconds: 320),
+      () => unawaited(_settingsRepo.updateReader(value)),
+    );
+
+    // Theme, texture and brightness are resolved at paint time, so only
+    // typography changes require a re-pagination pass.
     final typographyChanged =
         previous.fontSize != value.fontSize ||
             previous.lineHeight != value.lineHeight ||
@@ -216,6 +268,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _onPageChanged(int index) {
     setState(() {
       _pageIndex = index;
+      _zoomed = false;
       _sliderValue = null;
     });
     _scheduleSave();
@@ -226,6 +279,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (engine == null) return;
     setState(() {
       _pageIndex = page.clamp(0, math.max(0, engine.pageCount - 1));
+      _zoomed = false;
       _sliderValue = null;
       _chromeVisible = true;
     });
@@ -258,52 +312,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _closing = true;
     _saveTimer?.cancel();
     _settingsTimer?.cancel();
+    _settingsPersistTimer?.cancel();
     await _persistProgress();
-    if (!mounted) return;
-    Navigator.of(context).pop();
+    await _settingsRepo.updateReader(_settings);
+    if (mounted) Navigator.of(context).pop();
   }
 
-  // -------------------------------------------------------------- bookmarks
-
-  Future<void> _loadBookmarks() async {
-    try {
-      final list = await _library.bookmarksFor(widget.book.id);
-      if (!mounted) return;
-      setState(() => _bookmarks = list);
-    } catch (_) {
-      // Bookmarks are a convenience; the book still reads fine without them.
-    }
-  }
-
-  Bookmark? get _bookmarkHere {
-    final engine = _engine;
-    for (final bookmark in _bookmarks) {
-      if (bookmark.page == _pageIndex) return bookmark;
-      if (engine == null) continue;
-      final resolved = engine.pageForPosition(
-        ReadingPosition(
-          chapter: bookmark.chapter,
-          page: bookmark.page,
-          offset: bookmark.offset,
-        ),
-      );
-      if (resolved == _pageIndex) return bookmark;
-    }
-    return null;
-  }
+  // ---------------------------------------------------------------- bookmarks
 
   Future<void> _toggleBookmark() async {
     final engine = _engine;
     if (engine == null) return;
-    final existing = _bookmarkHere;
 
+    final existing = _bookmarkHere;
     if (existing != null) {
       await _library.deleteBookmark(existing.id);
       if (!mounted) return;
       setState(() {
-        _bookmarks = _bookmarks
-            .where((bookmark) => bookmark.id != existing.id)
-            .toList();
+        _bookmarks = _bookmarks.where((b) => b.id != existing.id).toList();
       });
       showToast(context, 'Bookmark removed.');
       return;
@@ -320,24 +346,147 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Future<void> _openBookmarks() async {
+    final engine = _engine;
+    if (engine == null) return;
     final selected = await showBookmarksSheet(
       context,
       book: widget.book,
       repo: _library,
       onChanged: () => unawaited(_loadBookmarks()),
+      pageFor: (bookmark) => engine.pageForPosition(bookmark.position),
     );
     if (selected == null || !mounted) return;
+    _jumpTo(engine.pageForPosition(selected.position));
+  }
+
+  Future<void> _openHighlights() async {
     final engine = _engine;
     if (engine == null) return;
-    _jumpTo(
-      engine.pageForPosition(
-        ReadingPosition(
-          chapter: selected.chapter,
-          page: selected.page,
-          offset: selected.offset,
-        ),
-      ),
+    final target = await showHighlightsSheet(
+      context,
+      book: widget.book,
+      repo: _library,
+      onChanged: () => unawaited(_loadBookmarks()),
+      pageFor: (highlight) => _pageForHighlight(engine, highlight),
     );
+    if (target != null && mounted) {
+      _jumpTo(_pageForHighlight(engine, target));
+    }
+  }
+
+  Future<void> _highlightSelectedText(SelectedText selection) async {
+    final text = selection.text.trim();
+    if (text.isEmpty) return;
+    const defaultColor = 0xFFFFEB3B; // Yellow
+    await _library.addHighlight(
+      book: widget.book,
+      page: _pageIndex,
+      chapter: selection.chapter,
+      chapterOffset: selection.offset,
+      length: selection.length,
+      text: text,
+      color: defaultColor,
+    );
+    await _loadBookmarks();
+    if (mounted) {
+      showToast(context, 'Highlighted!');
+    }
+  }
+
+  Future<void> _addHighlightPrompt() async {
+    if (widget.book.isPdf) {
+      await _showPdfUnsupported('Text highlighting');
+      return;
+    }
+    final engine = _engine;
+    if (engine == null) return;
+    final controller = TextEditingController();
+    int chosenColor = 0xFFFFEB3B;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final colors = [
+              0xFFFFEB3B, // Yellow
+              0xFF81C784, // Green
+              0xFF64B5F6, // Blue
+              0xFFFF8A80, // Pink
+              0xFFFFD54F, // Amber
+            ];
+            return AlertDialog(
+              title: const Text('Highlight text'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    controller: controller,
+                    autofocus: true,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Paste or type text to highlight on this page…',
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      for (final c in colors)
+                        GestureDetector(
+                          onTap: () => setDialogState(() => chosenColor = c),
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: Color(c),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: chosenColor == c
+                                    ? Colors.black87
+                                    : Colors.transparent,
+                                width: 2.2,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () =>
+                      Navigator.of(dialogCtx).pop(controller.text.trim()),
+                  child: const Text('Save Highlight'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    controller.dispose();
+
+    if (result != null && result.isNotEmpty) {
+      final position = engine.positionForPage(_pageIndex);
+      await _library.addHighlight(
+        book: widget.book,
+        page: _pageIndex,
+        chapter: position.chapter,
+        chapterOffset: position.offset,
+        length: result.length,
+        text: result,
+        color: chosenColor,
+      );
+      await _loadBookmarks();
+      if (mounted) showToast(context, 'Highlight saved!');
+    }
   }
 
   // ---------------------------------------------------------------- actions
@@ -359,13 +508,52 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final page = await showSearchSheet(
       context,
       engine: engine,
-      enabled: widget.book.isEpub,
+      enabled: true,
     );
     if (page != null && mounted) _jumpTo(page);
   }
 
+  /// PDF pages are fixed images, so text-only tools cannot work on them. Make
+  /// the limitation explicit instead of opening an empty sheet.
+  Future<void> _showPdfUnsupported(String feature) async {
+    final theme = Theme.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.picture_as_pdf_outlined,
+            size: 30,
+            color: AppColors.brass,
+          ),
+          title: Text('$feature needs EPUB'),
+          content: Text(
+            "PDF books don't support this feature. Please use the EPUB format "
+            'of the book to use it.',
+            style: TextStyle(
+              fontSize: 13.5,
+              height: 1.45,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          actions: [
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Got it'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _openSettings() async {
-    await showReaderSettingsSheet(context, _settings, _applySettings);
+    await showReaderSettingsSheet(
+      context,
+      _settings,
+      _applySettings,
+      isPdf: widget.book.isPdf,
+    );
   }
 
   Future<void> _openJump() async {
@@ -377,53 +565,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       currentPage: _pageIndex,
     );
     if (page != null && mounted) _jumpTo(page);
-  }
-
-  Future<void> _openZoom() async {
-    final engine = _engine;
-    if (engine is! PdfReaderEngine) return;
-    await showPdfZoom(context, engine: engine, pageIndex: _pageIndex);
-  }
-
-  Future<void> _setCoverFromCurrentPage() async {
-    final engine = _engine;
-    if (engine == null) return;
-    final currentBook = _library.bookById(widget.book.id) ?? widget.book;
-
-    if (currentBook.isPdf) {
-      try {
-        final doc = await PdfDocument.openFile(currentBook.filePath);
-        try {
-          final page = await doc.getPage(_pageIndex + 1);
-          try {
-            final ratio = page.width <= 0 ? 1.5 : page.height / page.width;
-            final rendered = await page.render(
-              width: 900,
-              height: 900 * ratio,
-              format: PdfPageImageFormat.jpeg,
-              quality: 88,
-            );
-            if (rendered != null) {
-              final ok = await _library.setCoverFromBytes(currentBook, rendered.bytes);
-              if (mounted) {
-                showToast(
-                  context,
-                  ok ? 'Page ${_pageIndex + 1} set as book cover!' : 'Could not save cover.',
-                );
-              }
-            }
-          } finally {
-            await page.close();
-          }
-        } finally {
-          await doc.close();
-        }
-      } catch (e) {
-        if (mounted) showToast(context, 'Could not capture page: $e');
-      }
-    } else {
-      showToast(context, 'Use "Choose a cover" in the shelf options for EPUB covers.');
-    }
   }
 
   // ------------------------------------------------------------------ build
@@ -469,15 +610,30 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
                 turnStyle: _settings.turnStyle,
                 theme: _settings.theme,
+                texture: _settings.texture,
                 onPageChanged: _onPageChanged,
                 onTapCenter: () => setState(() => _chromeVisible = !_chromeVisible),
+                gesturesEnabled: !_zoomed,
+                pageReady: (index) =>
+                    engine is! PdfReaderEngine ||
+                    engine.cachedImageFor(index) != null,
                 itemBuilder: (context, index) {
+                  final pageHighlights = _highlights
+                      .where((h) => _pageForHighlight(engine, h) == index)
+                      .toList(growable: false);
                   return _ReaderPage(
+                    key: ValueKey<int>(index),
                     book: widget.book,
                     engine: engine,
                     pageIndex: index,
                     settings: _settings,
                     safeInsets: insets,
+                    onTextHighlighted: _highlightSelectedText,
+                    highlights: pageHighlights,
+                    onZoomChanged: (zoomed) {
+                      if (_zoomed == zoomed) return;
+                      setState(() => _zoomed = zoomed);
+                    },
                   );
                 },
               ),
@@ -499,17 +655,18 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 insets: insets,
                 sliderValue: _sliderValue,
                 bookmarked: _bookmarkHere != null,
+                hasHighlight: _hasHighlightHere,
                 onClose: _close,
                 onToggleBookmark: _toggleBookmark,
                 onToggleChrome: () =>
                     setState(() => _chromeVisible = !_chromeVisible),
-                onSetCover: widget.book.isPdf ? _setCoverFromCurrentPage : null,
                 onToc: _openToc,
                 onSearch: _openSearch,
                 onBookmarks: _openBookmarks,
+                onHighlights: _openHighlights,
+                onAddHighlight: _addHighlightPrompt,
                 onSettings: _openSettings,
                 onJump: _openJump,
-                onZoom: widget.book.isEpub ? null : _openZoom,
                 onSliderChanged: (value) =>
                     setState(() => _sliderValue = value),
                 onSliderEnd: (value) {
@@ -567,11 +724,15 @@ class _ReaderScreenState extends State<ReaderScreen> {
 
 class _ReaderPage extends StatelessWidget {
   const _ReaderPage({
+    super.key,
     required this.book,
     required this.engine,
     required this.pageIndex,
     required this.settings,
     required this.safeInsets,
+    this.onTextHighlighted,
+    this.highlights = const <BookHighlight>[],
+    this.onZoomChanged,
   });
 
   final Book book;
@@ -579,6 +740,9 @@ class _ReaderPage extends StatelessWidget {
   final int pageIndex;
   final ReaderSettings settings;
   final EdgeInsets safeInsets;
+  final ValueChanged<SelectedText>? onTextHighlighted;
+  final List<BookHighlight> highlights;
+  final ValueChanged<bool>? onZoomChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -591,7 +755,30 @@ class _ReaderPage extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          engine.buildPage(context, pageIndex, settings, safeInsets),
+          if (engine is PdfReaderEngine)
+            engine.buildPage(
+              context,
+              pageIndex,
+              settings,
+              safeInsets,
+              onTextHighlighted: onTextHighlighted,
+              highlights: highlights,
+              onZoomChanged: onZoomChanged,
+            )
+          else
+            // EPUB text is real Flutter text, so it can be magnified with a
+            // transform instead of resizing the whole book.
+            ZoomablePage(
+              onZoomChanged: onZoomChanged,
+              child: engine.buildPage(
+                context,
+                pageIndex,
+                settings,
+                safeInsets,
+                onTextHighlighted: onTextHighlighted,
+                highlights: highlights,
+              ),
+            ),
           if (showNumber)
             Positioned(
               left: 0,
@@ -625,16 +812,17 @@ class _ReaderChrome extends StatelessWidget {
     required this.insets,
     required this.sliderValue,
     required this.bookmarked,
+    required this.hasHighlight,
     required this.onClose,
     required this.onToggleBookmark,
     required this.onToggleChrome,
-    this.onSetCover,
     required this.onToc,
     required this.onSearch,
     required this.onBookmarks,
+    required this.onHighlights,
+    required this.onAddHighlight,
     required this.onSettings,
     required this.onJump,
-    required this.onZoom,
     required this.onSliderChanged,
     required this.onSliderEnd,
   });
@@ -647,16 +835,17 @@ class _ReaderChrome extends StatelessWidget {
   final EdgeInsets insets;
   final double? sliderValue;
   final bool bookmarked;
+  final bool hasHighlight;
   final VoidCallback onClose;
   final VoidCallback onToggleBookmark;
   final VoidCallback onToggleChrome;
-  final VoidCallback? onSetCover;
   final VoidCallback onToc;
   final VoidCallback onSearch;
   final VoidCallback onBookmarks;
+  final VoidCallback onHighlights;
+  final VoidCallback onAddHighlight;
   final VoidCallback onSettings;
   final VoidCallback onJump;
-  final VoidCallback? onZoom;
   final ValueChanged<double> onSliderChanged;
   final ValueChanged<double> onSliderEnd;
 
@@ -665,6 +854,7 @@ class _ReaderChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPdf = book.isPdf;
     final chapter = engine.chapterTitleFor(pageIndex);
     final subtitle = chapter.trim().isNotEmpty
         ? chapter
@@ -738,13 +928,6 @@ class _ReaderChrome extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (onSetCover != null)
-                      _ChromeIcon(
-                        icon: Icons.photo_size_select_actual_outlined,
-                        tooltip: 'Use this page as cover',
-                        color: _cream,
-                        onTap: onSetCover!,
-                      ),
                     _ChromeIcon(
                       icon: bookmarked
                           ? Icons.bookmark_rounded
@@ -763,13 +946,13 @@ class _ReaderChrome extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withValues(alpha: 0.55),
-                      Colors.black.withValues(alpha: 0.88),
+                      Colors.black.withValues(alpha: 0.52),
+                      Colors.black.withValues(alpha: 0.86),
                     ],
-                    stops: const [0, 0.45, 1],
+                    stops: const [0, 0.38, 1],
                   ),
                 ),
-                padding: EdgeInsets.fromLTRB(12, 34, 12, insets.bottom + 8),
+                padding: EdgeInsets.fromLTRB(16, 26, 16, insets.bottom + 8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -833,38 +1016,50 @@ class _ReaderChrome extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _ChromeControl(
-                          icon: Icons.format_list_bulleted_rounded,
-                          label: 'Contents',
-                          onTap: onToc,
+                        if (!isPdf) ...[
+                          Expanded(
+                            child: _ChromeControl(
+                              icon: Icons.format_list_bulleted_rounded,
+                              label: 'Contents',
+                              onTap: onToc,
+                            ),
+                          ),
+                          Expanded(
+                            child: _ChromeControl(
+                              icon: Icons.search_rounded,
+                              label: 'Search',
+                              onTap: onSearch,
+                            ),
+                          ),
+                          Expanded(
+                            child: _ChromeControl(
+                              icon: Icons.highlight_rounded,
+                              label: 'Highlights',
+                              onTap: onHighlights,
+                            ),
+                          ),
+                        ],
+                        Expanded(
+                          child: _ChromeControl(
+                            icon: Icons.bookmarks_outlined,
+                            label: 'Marks',
+                            onTap: onBookmarks,
+                          ),
                         ),
-                        _ChromeControl(
-                          icon: Icons.search_rounded,
-                          label: 'Search',
-                          onTap: onSearch,
+                        Expanded(
+                          child: _ChromeControl(
+                            icon: Icons.tune_rounded,
+                            label: 'Theme',
+                            onTap: onSettings,
+                          ),
                         ),
-                        _ChromeControl(
-                          icon: Icons.bookmarks_outlined,
-                          label: 'Marks',
-                          onTap: onBookmarks,
-                        ),
-                        _ChromeControl(
-                          icon: Icons.text_fields_rounded,
-                          label: 'Text',
-                          onTap: onSettings,
-                        ),
-                        if (onZoom != null)
-                          _ChromeControl(
-                            icon: Icons.zoom_in_rounded,
-                            label: 'Zoom',
-                            onTap: onZoom!,
-                          )
-                        else
-                          _ChromeControl(
+                        Expanded(
+                          child: _ChromeControl(
                             icon: Icons.pin_drop_outlined,
                             label: 'Go to',
                             onTap: onJump,
                           ),
+                        ),
                       ],
                     ),
                   ],
@@ -882,31 +1077,22 @@ class _ChromeIcon extends StatelessWidget {
   const _ChromeIcon({
     required this.icon,
     required this.tooltip,
-    required this.onTap,
     this.color,
+    required this.onTap,
   });
 
   final IconData icon;
   final String tooltip;
-  final VoidCallback onTap;
   final Color? color;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(9),
-            child: Icon(icon, size: 21, color: color ?? const Color(0xFFF6EBD8)),
-          ),
-        ),
-      ),
+    final tint = color ?? Colors.white.withValues(alpha: 0.92);
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, color: tint),
     );
   }
 }
@@ -925,14 +1111,14 @@ class _ChromeControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const cream = Color(0xFFF6EBD8);
-    return Material(
-      color: Colors.transparent,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      clipBehavior: Clip.antiAlias,
+    const creamSoft = Color(0xFFE3D2B3);
+    return Tooltip(
+      message: label,
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -940,10 +1126,13 @@ class _ChromeControl extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 0.2,
-                  color: cream,
+                  fontSize: 10.0,
+                  letterSpacing: 0.1,
+                  color: creamSoft,
                 ),
               ),
             ],
@@ -969,63 +1158,48 @@ class _LoadingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: palette.page,
-      child: Stack(
-        children: [
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.6,
-                    color: AppColors.brass,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Opening book…',
-                  style: serifStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: palette.text,
-                  ),
-                ),
-                if (progress > 0) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Laying out pages (${(progress * 100).round()}%)',
-                    style: TextStyle(fontSize: 12, color: palette.muted),
-                  ),
-                ],
-              ],
-            ),
+    return Stack(
+      children: [
+        Positioned(
+          top: insets.top + 6,
+          left: 6,
+          child: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: palette.text),
+            onPressed: onClose,
           ),
-          Positioned(
-            left: 4,
-            top: insets.top + 4,
-            child: Material(
-              color: Colors.black.withValues(alpha: 0.18),
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onClose,
-                child: Padding(
-                  padding: const EdgeInsets.all(9),
-                  child: Icon(
-                    Icons.arrow_back_rounded,
-                    size: 21,
-                    color: palette.text,
-                  ),
+        ),
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 32,
+                height: 32,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.6,
+                  color: AppColors.brass,
                 ),
               ),
-            ),
+              const SizedBox(height: 18),
+              Text(
+                'Opening book…',
+                style: serifStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: palette.text,
+                ),
+              ),
+              if (progress > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Laying out pages (${(progress * 100).round()}%)',
+                  style: TextStyle(fontSize: 12, color: palette.muted),
+                ),
+              ],
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -1047,79 +1221,52 @@ class _ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: palette.page,
-      child: Stack(
-        children: [
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(34, 60, 34, 40),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.menu_book_rounded,
-                    size: 42,
-                    color: palette.muted.withValues(alpha: 0.6),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'This book could not be opened',
-                    textAlign: TextAlign.center,
-                    style: serifStyle(
-                      fontSize: 21,
-                      fontWeight: FontWeight.w600,
-                      color: palette.text,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    truncate(message, 320),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      height: 1.5,
-                      color: palette.muted,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      TextButton(onPressed: onClose, child: const Text('Back')),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: onRetry,
-                        child: const Text('Try again'),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+    return Stack(
+      children: [
+        Positioned(
+          top: insets.top + 6,
+          left: 6,
+          child: IconButton(
+            icon: Icon(Icons.arrow_back_rounded, color: palette.text),
+            onPressed: onClose,
           ),
-          Positioned(
-            left: 4,
-            top: insets.top + 4,
-            child: Material(
-              color: Colors.black.withValues(alpha: 0.18),
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: onClose,
-                child: Padding(
-                  padding: const EdgeInsets.all(9),
-                  child: Icon(
-                    Icons.arrow_back_rounded,
-                    size: 21,
+        ),
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.error_outline_rounded,
+                  size: 42,
+                  color: palette.muted,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Could not open this book',
+                  style: serifStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
                     color: palette.text,
                   ),
                 ),
-              ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12.5, color: palette.muted),
+                ),
+                const SizedBox(height: 20),
+                FilledButton.tonal(
+                  onPressed: onRetry,
+                  child: const Text('Try again'),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

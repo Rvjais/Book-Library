@@ -7,6 +7,7 @@ import 'package:libready/core/app_theme.dart';
 import 'package:libready/data/library_repository.dart';
 import 'package:libready/data/models.dart';
 import 'package:libready/data/settings_repository.dart';
+import 'package:libready/features/identity/data/peer_identity.dart';
 import 'package:libready/features/library/library_screen.dart';
 import 'package:libready/features/library/widgets/shelf_row.dart';
 import 'package:libready/features/reading/reading_screen.dart';
@@ -72,18 +73,22 @@ Book _book(
     position: '{}',
     isFavorite: favorite,
     isFinished: finished,
+    isShared: false,
+    contentHash: 'hash-$id',
   );
 }
 
 Widget _wrap(
   LibraryRepository library,
   SettingsRepository settings,
+  IdentityRepository identity,
   Widget child,
 ) {
   return MultiProvider(
     providers: [
       ChangeNotifierProvider<SettingsRepository>.value(value: settings),
       ChangeNotifierProvider<LibraryRepository>.value(value: library),
+      ChangeNotifierProvider<IdentityRepository>.value(value: identity),
     ],
     child: MaterialApp(theme: AppTheme.light(), home: child),
   );
@@ -115,8 +120,21 @@ void main() {
         _book(5, 'Atomic Habits'),
       ],
     );
+    final prefs = await SharedPreferences.getInstance();
+    final identity = IdentityRepository(
+      prefs,
+      const PeerIdentity(
+        peerId: 'test-peer-id',
+        userId: 'LIB-TEST1234',
+        displayName: 'TestReader_001',
+        publicKeyPem: 'test-public-key',
+        privateKeyPem: 'test-private-key',
+        createdAt: 0,
+      ),
+      'test-private-key',
+    );
 
-    await tester.pumpWidget(_wrap(library, settings, const LibraryScreen()));
+    await tester.pumpWidget(_wrap(library, settings, identity, const LibraryScreen()));
     await tester.pump();
 
     expect(find.text('LibReady'), findsOneWidget);
@@ -139,9 +157,22 @@ void main() {
         _book(3, 'Meditations', finished: true),
       ],
     );
+    final prefs = await SharedPreferences.getInstance();
+    final identity = IdentityRepository(
+      prefs,
+      const PeerIdentity(
+        peerId: 'test-peer-id',
+        userId: 'LIB-TEST1234',
+        displayName: 'TestReader_001',
+        publicKeyPem: 'test-public-key',
+        privateKeyPem: 'test-private-key',
+        createdAt: 0,
+      ),
+      'test-private-key',
+    );
 
     await tester.pumpWidget(
-      _wrap(library, settings, ReadingScreen(onBrowseLibrary: () {})),
+      _wrap(library, settings, identity, ReadingScreen(onBrowseLibrary: () {})),
     );
     await tester.pump();
 
@@ -161,12 +192,27 @@ void main() {
       settings: settings,
       fakeBooks: [_book(1, 'Deep Work', progress: 0.2)],
     );
+    final prefs = await SharedPreferences.getInstance();
+    final identity = IdentityRepository(
+      prefs,
+      const PeerIdentity(
+        peerId: 'test-peer-id',
+        userId: 'LIB-TEST1234',
+        displayName: 'TestReader_001',
+        publicKeyPem: 'test-public-key',
+        privateKeyPem: 'test-private-key',
+        createdAt: 0,
+      ),
+      'test-private-key',
+    );
 
-    await tester.pumpWidget(_wrap(library, settings, const SettingsScreen()));
+    await tester.pumpWidget(
+      _wrap(library, settings, identity, const SettingsScreen()),
+    );
     await tester.pump();
 
     expect(find.text('Settings'), findsOneWidget);
-    expect(find.text('READING DEFAULTS'), findsOneWidget);
+    expect(find.text('READING SETTINGS'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
