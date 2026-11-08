@@ -9,7 +9,7 @@ import '../../../reader/engines/reader_engine.dart';
 Future<int?> showSearchSheet(
   BuildContext context, {
   required ReaderEngine engine,
-  required bool enabled,
+  bool enabled = true,
 }) {
   return showAppSheet<int>(
     context: context,
@@ -18,7 +18,7 @@ Future<int?> showSearchSheet(
 }
 
 class _SearchSheet extends StatefulWidget {
-  const _SearchSheet({required this.engine, required this.enabled});
+  const _SearchSheet({required this.engine, this.enabled = true});
 
   final ReaderEngine engine;
   final bool enabled;
@@ -85,11 +85,9 @@ class _SearchSheetState extends State<_SearchSheet> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        SheetHeader(
+        const SheetHeader(
           title: 'Search in book',
-          subtitle: widget.enabled
-              ? 'Find a word or phrase across every page.'
-              : 'Text search is only available for EPUB books.',
+          subtitle: 'Find a word or phrase across every page.',
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
@@ -126,21 +124,6 @@ class _SearchSheetState extends State<_SearchSheet> {
   }
 
   Widget _buildResults(ThemeData theme) {
-    if (!widget.enabled) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(28, 18, 28, 44),
-        child: Text(
-          'PDF pages are images, so they cannot be searched locally. '
-          'EPUB books can be searched instantly.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 13,
-            height: 1.5,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
     if (_searching) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 46),

@@ -1,163 +1,328 @@
 /* ==========================================================================
-   LibReady website behaviour
-   - Theme toggle (light / dark / system) matching the Flutter app
-   - Mobile nav menu
-   - Active nav link on scroll
-   - Download link handling
+   LibReady Website — Interactive Features & Handcrafted Behaviors
    ========================================================================== */
 
 (function () {
+  'use strict';
+
+  /* ── 1. Light / Dark / System Theme Toggle ────────────────────────────── */
   const THEME_KEY = 'libready-theme';
-  const themes = ['light', 'dark', 'system'];
-  let themeIndex = 0;
+  const MODES = ['light', 'dark', 'system'];
+  let modeIndex = 0;
 
-  const html = document.documentElement;
-  const toggleBtn = document.getElementById('theme-toggle');
-  const toggleText = toggleBtn.querySelector('.toggle-text');
-  const toggleIcon = toggleBtn.querySelector('.toggle-icon');
+  const root   = document.documentElement;
+  const toggle = document.getElementById('theme-toggle');
+  const label  = toggle ? toggle.querySelector('.theme-toggle__label') : null;
+  const LABELS = { light: 'Light', dark: 'Dark', system: 'Auto' };
 
-  const labels = { light: 'Light', dark: 'Dark', system: 'System' };
-  const icons = { light: '☀️', dark: '🌙', system: '🖥️' };
-
-  // ---- Theme system ----
-  function resolveTheme(theme) {
-    if (theme === 'system') {
+  function resolveTheme(mode) {
+    if (mode === 'system') {
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
-    return theme;
+    return mode;
   }
 
-  function applyTheme(theme) {
-    const resolved = resolveTheme(theme);
-    html.setAttribute('data-theme', resolved);
-    html.style.colorScheme = resolved;
+  function applyTheme(mode) {
+    const resolved = resolveTheme(mode);
+    root.setAttribute('data-theme', resolved);
+    root.style.colorScheme = resolved;
 
-    const current = themes[themeIndex];
-    toggleText.textContent = labels[current];
-    toggleIcon.textContent = icons[current];
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.content = resolved === 'dark' ? '#130F0C' : '#F7EFE3';
+    }
 
-    // Persist choice
-    try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+    if (toggle) {
+      toggle.querySelectorAll('.theme-toggle__icon').forEach(i => i.style.display = 'none');
+      const iconClass = mode === 'system' ? 'theme-toggle__system' : (mode === 'dark' ? 'theme-toggle__moon' : 'theme-toggle__sun');
+      const icon = toggle.querySelector('.' + iconClass);
+      if (icon) icon.style.display = 'block';
+      if (label) label.textContent = LABELS[mode];
+    }
+
+    try { localStorage.setItem(THEME_KEY, mode); } catch (_) {}
   }
 
-  function nextTheme() {
-    themeIndex = (themeIndex + 1) % themes.length;
-    applyTheme(themes[themeIndex]);
+  function cycleTheme() {
+    modeIndex = (modeIndex + 1) % MODES.length;
+    applyTheme(MODES[modeIndex]);
   }
 
-  // Load saved theme or default to light
   (function initTheme() {
-    let saved = null;
-    try { saved = localStorage.getItem(THEME_KEY); } catch (e) {}
-    if (!saved || !themes.includes(saved)) saved = 'light';
-    themeIndex = themes.indexOf(saved);
+    let saved;
+    try { saved = localStorage.getItem(THEME_KEY); } catch (_) {}
+    if (!saved || !MODES.includes(saved)) saved = 'light';
+    modeIndex = MODES.indexOf(saved);
     applyTheme(saved);
 
-    // Re-resolve when system preference changes
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if (themes[themeIndex] === 'system') applyTheme('system');
+      if (MODES[modeIndex] === 'system') applyTheme('system');
     });
 
-    toggleBtn.addEventListener('click', nextTheme);
+    if (toggle) toggle.addEventListener('click', cycleTheme);
   })();
 
-  // ---- Mobile nav ----
-  const navMenu = document.getElementById('nav-menu');
-  const nav = document.getElementById('nav');
-  const header = document.getElementById('header');
+  /* ── 2. Mobile Nav Drawer & Backdrop UX ──────────────────────────────── */
+  const hamburger       = document.getElementById('hamburger');
+  const nav             = document.getElementById('nav');
+  const navBackdrop     = document.getElementById('nav-backdrop');
+  const navDrawerClose  = document.getElementById('nav-drawer-close');
 
-  navMenu.addEventListener('click', () => {
-    const open = navMenu.getAttribute('aria-expanded') === 'true';
-    navMenu.setAttribute('aria-expanded', String(!open));
-    nav.classList.toggle('open');
-  });
+  function openNav() {
+    if (!nav) return;
+    hamburger.setAttribute('aria-expanded', 'true');
+    nav.classList.add('open');
+    if (navBackdrop) navBackdrop.classList.add('open');
+    document.body.classList.add('nav-locked');
+  }
 
-  // Close mobile menu when clicking a link
-  document.querySelectorAll('.nav-list a').forEach((link) => {
-    link.addEventListener('click', () => {
-      navMenu.setAttribute('aria-expanded', 'false');
-      nav.classList.remove('open');
+  function closeNav() {
+    if (!nav) return;
+    hamburger.setAttribute('aria-expanded', 'false');
+    nav.classList.remove('open');
+    if (navBackdrop) navBackdrop.classList.remove('open');
+    document.body.classList.remove('nav-locked');
+  }
+
+  if (hamburger && nav) {
+    hamburger.addEventListener('click', () => {
+      const isOpen = nav.classList.contains('open');
+      if (isOpen) closeNav();
+      else openNav();
     });
-  });
 
-  // ---- Active nav link on scroll ----
+    if (navDrawerClose) navDrawerClose.addEventListener('click', closeNav);
+    if (navBackdrop) navBackdrop.addEventListener('click', closeNav);
+
+    // Close on any link click
+    nav.querySelectorAll('a').forEach(link => {
+      link.addEventListener('click', closeNav);
+    });
+
+    // Close on Escape key
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && nav.classList.contains('open')) {
+        closeNav();
+      }
+    });
+  }
+
+  /* ── 3. Active Nav Link on Scroll ─────────────────────────────────────── */
   const sections = document.querySelectorAll('section[id]');
-  const navLinks = document.querySelectorAll('.nav-list a');
+  const navLinks = document.querySelectorAll('.nav__list a');
 
-  function onScroll() {
-    const scrollY = window.pageYOffset;
+  function highlightNav() {
+    const y = window.scrollY;
     let current = null;
-
-    sections.forEach((section) => {
-      const sectionTop = section.offsetTop - 120;
-      const sectionBottom = sectionTop + section.offsetHeight;
-      if (scrollY >= sectionTop && scrollY < sectionBottom) {
-        current = section.getAttribute('id');
+    sections.forEach(s => {
+      if (y >= s.offsetTop - 160 && y < s.offsetTop + s.offsetHeight - 160) {
+        current = s.id;
       }
     });
-
-    navLinks.forEach((link) => {
-      link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+    navLinks.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + current);
     });
   }
+  window.addEventListener('scroll', highlightNav, { passive: true });
+  highlightNav();
 
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
-
-  // ---- Header scroll effect ----
-  let lastScroll = 0;
-  window.addEventListener('scroll', () => {
-    const currentScroll = window.pageYOffset;
-    if (currentScroll > 60) {
-      header.classList.add('scrolled');
-    } else {
-      header.classList.remove('scrolled');
-    }
-    lastScroll = currentScroll;
-  }, { passive: true });
-
-  // ---- Download handling ----
-  const apkBtn = document.getElementById('apk-download');
-  const appstoreBtn = document.getElementById('appstore-download');
-
-  if (apkBtn) {
-    apkBtn.addEventListener('click', (e) => {
-      const href = apkBtn.getAttribute('href');
-      if (!href || href === '#' || href.includes('releases/latest')) {
-        e.preventDefault();
-        const confirmDownload = confirm(
-          'The APK will be provided via the GitHub Releases page.\n\n' +
-          'To get the app now:\n1. Build it with "flutter build apk --release"\n2. Upload the APK to a GitHub Release\n3. Paste the release URL here'
-        );
-        if (confirmDownload) {
-          window.location.href = 'https://github.com/Rvjais/Book-Library/releases';
-        }
-      }
-    });
+  /* ── 4. Sticky Header Shadow ──────────────────────────────────────────── */
+  const navbar = document.getElementById('navbar');
+  if (navbar) {
+    window.addEventListener('scroll', () => {
+      navbar.classList.toggle('scrolled', window.scrollY > 40);
+    }, { passive: true });
   }
 
-  if (appstoreBtn) {
-    appstoreBtn.style.opacity = '0.7';
-    appstoreBtn.style.cursor = 'not-allowed';
-    appstoreBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      alert('The iOS App Store listing is being prepared.\n\nIn the meantime, build for iOS with:\nflutter build ios\nThen open ios/Runner.xcworkspace in Xcode.');
-    });
-  }
+  /* ── 5. Gallery Category Filter & Load More ───────────────────────────── */
+  const filterPills   = document.querySelectorAll('.filter-pill');
+  const galleryCards  = document.querySelectorAll('.gallery-card');
+  const loadMoreBtn   = document.getElementById('load-more-btn');
+  const loadMoreText  = loadMoreBtn ? loadMoreBtn.querySelector('.load-more-text') : null;
+  const initialHiddenCards = document.querySelectorAll('.gallery-card--hidden');
 
-  // ---- Smooth reveal for feature cards ----
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('revealed');
+  let isGalleryExpanded = false;
+
+  function updateGalleryDisplay(category) {
+    if (category === 'all') {
+      if (loadMoreBtn) loadMoreBtn.style.display = 'inline-flex';
+      galleryCards.forEach((card, index) => {
+        if (!isGalleryExpanded && index >= 6) {
+          card.classList.add('gallery-card--hidden');
+          card.style.display = 'none';
+        } else {
+          card.classList.remove('gallery-card--hidden');
+          card.style.display = '';
+          card.classList.add('visible');
         }
       });
-    },
-    { threshold: 0.12, rootMargin: '0px 0px -60px 0px' }
-  );
+    } else {
+      if (loadMoreBtn) loadMoreBtn.style.display = 'none';
+      galleryCards.forEach(card => {
+        const cardCat = card.getAttribute('data-category');
+        if (cardCat === category) {
+          card.classList.remove('gallery-card--hidden');
+          card.style.display = '';
+          card.classList.add('visible');
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  }
 
-  document.querySelectorAll('.feature-card, .theme-card, .step').forEach((el) => {
-    observer.observe(el);
+  filterPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      const category = pill.getAttribute('data-filter');
+      filterPills.forEach(p => {
+        p.classList.remove('filter-pill--active');
+        p.setAttribute('aria-selected', 'false');
+      });
+      pill.classList.add('filter-pill--active');
+      pill.setAttribute('aria-selected', 'true');
+      updateGalleryDisplay(category);
+    });
   });
+
+  if (loadMoreBtn) {
+    loadMoreBtn.addEventListener('click', () => {
+      isGalleryExpanded = !isGalleryExpanded;
+      loadMoreBtn.setAttribute('aria-expanded', String(isGalleryExpanded));
+      loadMoreBtn.classList.toggle('expanded', isGalleryExpanded);
+
+      if (loadMoreText) {
+        loadMoreText.textContent = isGalleryExpanded ? 'Show Less Screenshots' : 'Load More Screenshots (6 remaining)';
+      }
+
+      const activePill = document.querySelector('.filter-pill--active');
+      const currentCat = activePill ? activePill.getAttribute('data-filter') : 'all';
+      updateGalleryDisplay(currentCat);
+
+      if (!isGalleryExpanded) {
+        const screensSection = document.getElementById('screens');
+        if (screensSection) screensSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  }
+
+  /* ── 6. Screenshot Lightbox Modal ─────────────────────────────────────── */
+  const lightbox        = document.getElementById('lightbox');
+  const lightboxOverlay = document.getElementById('lightbox-overlay');
+  const lightboxClose   = document.getElementById('lightbox-close');
+  const lightboxImg     = document.getElementById('lightbox-img');
+  const lightboxTitle   = document.getElementById('lightbox-title');
+  const lightboxDesc    = document.getElementById('lightbox-desc');
+
+  function openLightbox(src, title, desc) {
+    if (!lightbox) return;
+    lightboxImg.src = src;
+    lightboxImg.alt = title;
+    lightboxTitle.textContent = title;
+    lightboxDesc.textContent = desc;
+    lightbox.removeAttribute('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.setAttribute('hidden', '');
+    lightboxImg.src = '';
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('.gallery-card__device').forEach(device => {
+    device.addEventListener('click', () => {
+      const src   = device.getAttribute('data-src');
+      const title = device.getAttribute('data-title');
+      const desc  = device.getAttribute('data-desc');
+      if (src) openLightbox(src, title, desc);
+    });
+  });
+
+  if (lightboxOverlay) lightboxOverlay.addEventListener('click', closeLightbox);
+  if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && lightbox && !lightbox.hasAttribute('hidden')) {
+      closeLightbox();
+    }
+  });
+
+  /* ── 7. Interactive Theme & Typography Simulator ──────────────────────── */
+  const simPage         = document.getElementById('sim-page');
+  const simBody         = document.getElementById('sim-body');
+  const themeSwatches   = document.querySelectorAll('.btn-swatch');
+  const textureBtns     = document.querySelectorAll('.btn-texture');
+  const fontSizeSlider  = document.getElementById('font-size-slider');
+  const fontSizeVal     = document.getElementById('font-size-val');
+  const lineHeightSlider= document.getElementById('line-height-slider');
+  const lineHeightVal   = document.getElementById('line-height-val');
+  const justifyToggle   = document.getElementById('justify-toggle');
+
+  if (simPage) {
+    // Theme Switcher
+    themeSwatches.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const theme = btn.getAttribute('data-theme');
+        themeSwatches.forEach(b => b.classList.remove('btn-swatch--active'));
+        btn.classList.add('btn-swatch--active');
+
+        simPage.classList.remove('sim-page--paper', 'sim-page--sepia', 'sim-page--night', 'sim-page--black');
+        simPage.classList.add('sim-page--' + theme);
+      });
+    });
+
+    // Texture Switcher
+    textureBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const texture = btn.getAttribute('data-texture');
+        textureBtns.forEach(b => b.classList.remove('btn-texture--active'));
+        btn.classList.add('btn-texture--active');
+
+        simPage.classList.remove('sim-texture--smooth', 'sim-texture--linen', 'sim-texture--cloth');
+        simPage.classList.add('sim-texture--' + texture);
+      });
+    });
+
+    // Font Size Slider
+    if (fontSizeSlider && fontSizeVal && simBody) {
+      fontSizeSlider.addEventListener('input', () => {
+        const size = fontSizeSlider.value;
+        fontSizeVal.textContent = size + 'px';
+        simBody.style.fontSize = size + 'px';
+      });
+    }
+
+    // Line Height Slider
+    if (lineHeightSlider && lineHeightVal && simBody) {
+      lineHeightSlider.addEventListener('input', () => {
+        const lh = lineHeightSlider.value;
+        lineHeightVal.textContent = lh;
+        simBody.style.lineHeight = lh;
+      });
+    }
+
+    // Justify Text Toggle
+    if (justifyToggle && simBody) {
+      justifyToggle.addEventListener('change', () => {
+        simBody.style.textAlign = justifyToggle.checked ? 'justify' : 'left';
+      });
+    }
+  }
+
+  /* ── 8. Scroll Reveal Animations ──────────────────────────────────────── */
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+  }
+
 })();

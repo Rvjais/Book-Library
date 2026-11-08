@@ -27,11 +27,12 @@ class EpubPageView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottomReserve = settings.showPageNumber ? 22.0 : 8.0;
     final padding = EdgeInsets.fromLTRB(
       settings.margins + safeInsets.left,
       settings.margins * 0.9 + safeInsets.top,
       settings.margins + safeInsets.right,
-      settings.margins * 0.9 + safeInsets.bottom,
+      settings.margins * 0.9 + safeInsets.bottom + bottomReserve,
     );
 
     return Stack(

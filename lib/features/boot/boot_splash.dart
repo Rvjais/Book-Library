@@ -41,16 +41,27 @@ class _LibReadyBootstrapState extends State<LibReadyBootstrap> {
       final settings = await SettingsRepository.load();
       final library = LibraryRepository(settings: settings);
       final identity = await IdentityRepository.load();
-
-      // P2P service: STUN + signaling server + ICE for cross-network discovery
       final p2p = P2pService(
         identity: identity.identity,
         storage: library.storage,
-        signalingServerUrl: 'ws://localhost:8080',
       );
-      await p2p.initialize();
 
       await library.init();
+      unawaited(p2p.initialize());
+
+      // Seed community store with books currently marked as shared in the local library
+      for (final book in library.books) {
+        if (book.isShared) {
+          unawaited(p2p.advertiseBook(
+            contentHash: book.contentHash,
+            title: book.title,
+            author: book.author,
+            format: book.format.name.toLowerCase(),
+            fileSize: book.fileSize,
+          ));
+        }
+      }
+
       await pdfrxFlutterInitialize();
       if (!mounted) return;
       setState(() {

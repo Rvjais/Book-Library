@@ -184,9 +184,13 @@ class _BookSheetState extends State<_BookSheet> {
       try {
         final page = doc.pages[pageNumber - 1];
         final ratio = page.width <= 0 ? 1.5 : page.height / page.width;
+        const targetW = 900;
+        final targetH = (900 * ratio).round();
         final rendered = await page.render(
-          width: 900,
-          height: (900 * ratio).round(),
+          width: targetW,
+          height: targetH,
+          fullWidth: targetW.toDouble(),
+          fullHeight: targetH.toDouble(),
         );
         if (rendered != null) {
           try {
@@ -630,6 +634,8 @@ class _PickPdfPageDialogState extends State<_PickPdfPageDialog> {
         final pdfImage = await p.render(
           width: targetW,
           height: targetH,
+          fullWidth: targetW.toDouble(),
+          fullHeight: targetH.toDouble(),
         );
         if (pdfImage != null) {
           final uiImg = await pdfImage.createImage();

@@ -161,6 +161,9 @@ class PdfReaderEngine implements ReaderEngine {
         }
       } catch (_) {}
       if (hits.length >= 100) break;
+      if (i % 5 == 4) {
+        await Future<void>.delayed(Duration.zero);
+      }
     }
     return hits;
   }
@@ -240,6 +243,8 @@ class PdfReaderEngine implements ReaderEngine {
     final pdfImage = await page.render(
       width: targetWidth.round(),
       height: targetHeight.round(),
+      fullWidth: targetWidth,
+      fullHeight: targetHeight,
     );
     if (pdfImage == null) {
       throw StateError('Could not render page ${pageIndex + 1}.');

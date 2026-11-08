@@ -5,11 +5,21 @@ import '../../../core/app_theme.dart';
 import '../../../data/models.dart';
 import 'wood_background.dart';
 
-/// Width of one spine, derived from the title so a book keeps the same
-/// thickness on every shelf and after restarts.
+/// Width of one spine, scaling realistically with the book's total page count.
+/// Thin pamphlets/short books are slender (~22-26px), while thick tomes
+/// expand up to ~46px, with subtle title-based variation for books with unknown page count.
 double spineWidthFor(Book book) {
+  if (book.pageCount > 0) {
+    // 1 to 50 pages -> ~22px
+    // 300 pages -> ~29px
+    // 600 pages -> ~36px
+    // 1000+ pages -> ~45px
+    final pages = book.pageCount.clamp(1, 1500);
+    final width = 22.0 + (pages / 1500.0) * 24.0;
+    return width.clamp(22.0, 46.0);
+  }
   final hash = book.title.hashCode & 0x7fffffff;
-  return 23.0 + (hash % 13);
+  return 24.0 + (hash % 11);
 }
 
 /// The small gap between neighbouring spines.

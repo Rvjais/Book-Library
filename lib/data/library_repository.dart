@@ -340,9 +340,13 @@ class LibraryRepository extends ChangeNotifier {
       if (pages > 0) {
         final page = document.pages[0];
         final ratio = page.width <= 0 ? 1.5 : page.height / page.width;
+        const targetW = 900;
+        final targetH = (900 * ratio).round();
         final rendered = await page.render(
-          width: 900,
-          height: (900 * ratio).round(),
+          width: targetW,
+          height: targetH,
+          fullWidth: targetW.toDouble(),
+          fullHeight: targetH.toDouble(),
         );
         if (rendered != null) {
           try {

@@ -3,224 +3,784 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LibReady — Your private, offline library</title>
-  <meta name="description" content="LibReady is a private, offline library and reader for PDF and EPUB books. No account, no server, no network. Built for Android and iOS." />
+  <title>LibReady — Your Private, Offline Bookshelf &amp; Reader</title>
+  <meta name="description" content="LibReady is a private, offline library and reader for PDF and EPUB books. Realistic wooden shelves, authentic page curl, peer-to-peer community, and zero cloud tracking." />
   <meta name="theme-color" content="#F6EFE0" />
+
+  <!-- Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Georgia:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
   <link rel="icon" type="image/png" href="assets/app-icon.png" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <a href="#download" class="skip-link">Skip to download</a>
 
-  <header class="shell" id="header">
-    <div class="header-inner">
-      <a href="#" class="logo" aria-label="LibReady home">
-        <img src="assets/app-icon.png" alt="LibReady icon" class="logo-img" />
-        <span class="logo-text">Lib<span class="logo-accent">Ready</span></span>
+  <!-- ════════════════════ TOP ANNOUNCEMENT BANNER ════════════════════ -->
+  <aside class="top-banner">
+    <div class="container top-banner__inner">
+      <span class="top-banner__pill">100% Private</span>
+      <span class="top-banner__text">No cloud, no analytics, no accounts — your library never leaves your device.</span>
+      <a href="#privacy" class="top-banner__link">Learn why offline matters &rarr;</a>
+    </div>
+  </aside>
+
+  <!-- ════════════════════ STICKY NAVBAR ════════════════════ -->
+  <header class="navbar" id="navbar">
+    <div class="container navbar__inner">
+      <a href="#" class="brand" aria-label="LibReady home">
+        <div class="brand__icon-wrap">
+          <img src="assets/app-icon.png" alt="" class="brand__icon" width="38" height="38" />
+        </div>
+        <div class="brand__info">
+          <span class="brand__text">Lib<span class="brand__accent">Ready</span></span>
+          <span class="brand__tag">Offline Reader</span>
+        </div>
       </a>
 
-      <nav class="nav" id="nav">
-        <ul class="nav-list">
+      <nav class="nav" id="nav" aria-label="Primary navigation">
+        <div class="nav__drawer-header">
+          <span class="brand__text">Lib<span class="brand__accent">Ready</span></span>
+          <button class="nav__drawer-close" id="nav-drawer-close" aria-label="Close menu">&times;</button>
+        </div>
+        <ul class="nav__list">
+          <li><a href="#screens">Screenshots</a></li>
           <li><a href="#features">Features</a></li>
-          <li><a href="#themes">Reader Themes</a></li>
-          <li><a href="#privacy">Privacy</a></li>
-          <li><a href="#download" class="nav-button">Download</a></li>
+          <li><a href="#themes">Reading Themes</a></li>
+          <li><a href="#privacy">Privacy &amp; Security</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#download" class="nav__cta">Get APK</a></li>
         </ul>
       </nav>
+      <div class="nav-backdrop" id="nav-backdrop"></div>
 
-      <div class="header-controls">
-        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Change appearance">
-          <span class="toggle-text">Light</span>
-          <span class="toggle-icon">☀️</span>
+      <div class="navbar__controls">
+        <button class="theme-toggle" id="theme-toggle" aria-label="Switch appearance" title="Switch between Light, Dark, and System themes">
+          <span class="theme-toggle__icons">
+            <svg class="theme-toggle__icon theme-toggle__sun" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <svg class="theme-toggle__icon theme-toggle__moon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+            <svg class="theme-toggle__icon theme-toggle__system" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </span>
+          <span class="theme-toggle__label">Light</span>
         </button>
-        <button class="nav-menu" id="nav-menu" aria-label="Open menu" aria-expanded="false">
-          <span class="menu-line"></span>
-          <span class="menu-line"></span>
-          <span class="menu-line"></span>
+
+        <button class="hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false" aria-controls="nav">
+          <span></span><span></span><span></span>
         </button>
       </div>
     </div>
   </header>
 
   <main>
-    <section class="hero shell">
-      <div class="hero-content">
-        <div class="hero-badge">Private · Offline · Free · No account</div>
-        <h1 class="hero-title">Lib<span class="hero-accent">Ready</span></h1>
-        <p class="hero-sub">A wooden-shelf library and reader for your <strong>PDF</strong> and <strong>EPUB</strong> books. Everything stays on your device — there is no server, no cloud sync, and nothing ever leaves your phone.</p>
+    <!-- ════════════════════ HERO SECTION ════════════════════ -->
+    <section class="hero">
+      <div class="hero__ambient-glow"></div>
+      <div class="container hero__inner">
+        <div class="hero__content reveal">
+          <div class="hero__badge-row">
+            <span class="kicker-badge">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Private · Offline · Open
+            </span>
+            <span class="hero__pill">EPUB &amp; PDF</span>
+          </div>
 
-        <div class="hero-cta">
-          <a href="#download" class="btn btn-primary">Download for Android</a>
-          <a href="#download" class="btn btn-outline">Get on the App Store</a>
-        </div>
+          <h1 class="hero__title">
+            Your books.<br />
+            Your shelf.<br />
+            <span class="hero__title-italic">Nothing leaves your device.</span>
+          </h1>
 
-        <p class="hero-note">Android · iOS · Works 100% offline</p>
-      </div>
+          <p class="hero__sub">
+            A handcrafted digital bookshelf and distraction-free reader for <strong>PDF</strong> and <strong>EPUB</strong>.
+            Display books on realistic wooden shelves with last-read dates, turn pages with authentic curl physics, and share locally via peer-to-peer — with <strong>zero network permissions</strong>.
+          </p>
 
-      <div class="hero-decor">
-        <img src="assets/screenshots/home.png" alt="LibReady library shelf with wooden book covers" class="hero-screenshot" />
-      </div>
-    </section>
+          <div class="hero__cta-group">
+            <a href="#download" class="btn btn--primary btn--hero">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download APK <strong>v1.0.0</strong></span>
+            </a>
+            <a href="#screens" class="btn btn--outline btn--hero">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Explore Screens</span>
+            </a>
+          </div>
 
-    <section id="features" class="features shell">
-      <div class="section-header">
-        <span class="section-kicker">What it does</span>
-        <h2 class="section-title">A shelf for every book you own</h2>
-        <p class="section-desc">Import your PDFs and EPUBs, give each one a cover from its first page, and pick up reading right where you left off.</p>
-      </div>
-
-      <div class="features-grid">
-        <article class="feature-card">
-          <div class="feature-icon">📚</div>
-          <h3>Wooden shelf library</h3>
-          <p>Book covers stand on dark-wood shelves with the date you last read them above each cover. Search, filter (All / Reading / Finished / Favourites), and sort your library however you like.</p>
-        </article>
-
-        <article class="feature-card">
-          <div class="feature-icon">📖</div>
-          <h3>Real page-turns</h3>
-          <p>Choose from page curl, book flip, slide, fade, or instant turns. The current page curls over the next, so reading feels like a real book.</p>
-        </article>
-
-        <article class="feature-card">
-          <div class="feature-icon">🎨</div>
-          <h3>Four reader themes</h3>
-          <p>Read in Paper, Sepia, Night, or Black. Adjust font size, line height, margins, justification, and serif/sans typography — all saved per book.</p>
-        </article>
-
-        <article class="feature-card">
-          <div class="feature-icon">🔒</div>
-          <h3>100% offline, always</h3>
-          <p>No account, no server, no analytics, no ads, no network permission. Books, covers, bookmarks, and progress live only in your app's private storage.</p>
-        </article>
-
-        <article class="feature-card">
-          <div class="feature-icon">🔄</div>
-          <h3>Continue reading</h3>
-          <p>A dashboard card shows your last book, progress, and a one-tap resume. Reading statistics and finished shelves track your journey.</p>
-        </article>
-
-        <article class="feature-card">
-          <div class="feature-icon">➕</div>
-          <h3>Import in batches</h3>
-          <p>Add several books at once with a progress dialog. Duplicates are detected by file fingerprint, so the same book is never imported twice.</p>
-        </article>
-      </div>
-    </section>
-
-    <section id="themes" class="themes shell">
-      <div class="section-header">
-        <span class="section-kicker">Reader appearance</span>
-        <h2 class="section-title">Read the way you like</h2>
-        <p class="section-desc">Four built-in themes plus fully adjustable typography, so every page looks exactly how you want it.</p>
-      </div>
-
-      <div class="themes-grid">
-        <div class="theme-card">
-          <div class="theme-preview theme-paper"></div>
-          <h3>Paper</h3>
-          <p>Warm cream pages, easy on the eyes in daylight.</p>
-        </div>
-        <div class="theme-card">
-          <div class="theme-preview theme-sepia"></div>
-          <h3>Sepia</h3>
-          <p>A vintage, golden tone for long reading sessions.</p>
-        </div>
-        <div class="theme-card">
-          <div class="theme-preview theme-night"></div>
-          <h3>Night</h3>
-          <p>Soft dark background for reading in low light.</p>
-        </div>
-        <div class="theme-card">
-          <div class="theme-preview theme-black"></div>
-          <h3>Black</h3>
-          <p>Deep black for OLED screens and maximum contrast.</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="privacy" class="privacy shell">
-      <div class="privacy-inner">
-        <div class="privacy-content">
-          <span class="section-kicker">Privacy by design</span>
-          <h2 class="section-title">Nothing leaves your device</h2>
-          <p class="section-desc">LibReady does not collect any data. There is no analytics, no advertising, no cloud sync, and the release build declares no network permission on Android.</p>
-          <ul class="privacy-list">
-            <li><strong>All books and covers</strong> are stored locally in the app's private Documents directory.</li>
-            <li><strong>Bookmarks and progress</strong> live in a local database on your device.</li>
-            <li><strong>No account required.</strong> Nothing to sign up for, nothing to log into.</li>
-            <li><strong>Deleting a book</strong> removes its file, cover, bookmarks, and reading progress.</li>
+          <!-- Feature Bullets in Hero -->
+          <ul class="hero__highlights">
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Covers &amp; Spines shelf styles</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Authentic page-curl animation</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Local peer-to-peer sharing</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--brass)" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Zero telemetry or cloud tracking</span>
+            </li>
           </ul>
         </div>
-        <div class="privacy-seal">
-          <div class="seal-icon">🔒</div>
-          <div class="seal-text">Offline by design</div>
-        </div>
-      </div>
-    </section>
 
-    <section id="how-it-works" class="steps shell">
-      <div class="section-header">
-        <span class="section-kicker">Get started</span>
-        <h2 class="section-title">From file to bookshelf in three steps</h2>
-      </div>
-
-      <div class="steps-grid">
-        <div class="step">
-          <div class="step-number">01</div>
-          <h3>Import</h3>
-          <p>Tap Add book and pick one or more PDF or EPUB files. LibReady copies them into its private storage.</p>
-        </div>
-        <div class="step">
-          <div class="step-number">02</div>
-          <h3>Discover</h3>
-          <p>Each book gets a cover from its first page, with the last-read date shown above it on your shelf.</p>
-        </div>
-        <div class="step">
-          <div class="step-number">03</div>
-          <h3>Read</h3>
-          <p>Tap a cover and turn pages with a real curl. Pick up exactly where you left off, anytime.</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="download" class="download shell">
-      <div class="download-inner">
-        <div class="download-content">
-          <span class="section-kicker">Get LibReady</span>
-          <h2 class="section-title">Download the app</h2>
-          <p class="section-desc">LibReady is available for Android and iOS. Choose your platform below.</p>
-
-          <div class="download-buttons">
-            <a href="https://github.com/Rvjais/Book-Library/releases/latest" class="btn btn-primary btn-large" id="apk-download" target="_blank" rel="noopener">
-              <span class="btn-icon">⬇️</span>
-              Download APK (Android)
-            </a>
-            <a href="#" class="btn btn-outline btn-large" id="appstore-download">
-              <span class="btn-icon">🍎</span>
-              App Store (iOS)
-            </a>
-          </div>
-
-          <div class="download-note">
-            <p><strong>Android:</strong> Download the <code>.apk</code> from the latest GitHub release and install it. You may need to enable "Install unknown apps" for your browser or file manager the first time.</p>
-            <p><strong>iOS:</strong> The App Store listing is being prepared. In the meantime, you can build and run the app yourself with Flutter and Xcode.</p>
-            <p class="download-version">Latest version: <strong>1.0.0</strong></p>
-          </div>
-        </div>
-
-        <div class="download-visual">
-          <div class="phone-card">
-            <div class="phone-screen">
-              <div class="phone-header">
-                <span class="dot dot-red"></span>
-                <span class="dot dot-yellow"></span>
-                <span class="dot dot-green"></span>
+        <!-- Hero Visual Showcase -->
+        <div class="hero__visual reveal">
+          <div class="hero__mockup-cluster">
+            <!-- Main Hero Phone (Library Shelf) -->
+            <div class="phone-frame phone-frame--hero" data-label="Library View">
+              <div class="phone-frame__speaker"></div>
+              <div class="phone-frame__camera"></div>
+              <div class="phone-frame__screen">
+                <img src="assets/screenshots/01-library.png" alt="LibReady wooden shelf library showing book covers with last-read dates" class="phone-frame__img" />
+                <div class="phone-frame__glare"></div>
               </div>
-              <img src="assets/screenshots/screen3.png" alt="LibReady reader screen" class="phone-screenshot" />
+            </div>
+
+            <!-- Floating Companion Card: Reading Progress -->
+            <div class="hero__float-card hero__float-card--reader">
+              <div class="float-card__header">
+                <span class="float-card__badge">Continue Reading</span>
+                <span class="float-card__time">Chapter 4 · 42%</span>
+              </div>
+              <div class="float-card__body">
+                <p class="float-card__title">Learning SQL</p>
+                <div class="float-card__bar">
+                  <div class="float-card__progress" style="width: 42%"></div>
+                </div>
+                <span class="float-card__sub">Alan Beaulieu · EPUB · 107 Chapters</span>
+              </div>
+            </div>
+
+            <!-- Floating Companion Card: Privacy Badge -->
+            <div class="hero__float-card hero__float-card--privacy">
+              <div class="float-card__icon-badge">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div>
+                <strong>Sandbox Storage</strong>
+                <span>No network permissions declared</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════ SCREENSHOT SHOWCASE & GALLERY ════════════════════ -->
+    <section id="screens" class="screens">
+      <div class="container">
+        <div class="section-header reveal">
+          <span class="kicker">App Gallery</span>
+          <h2 class="section-title">Crafted with care, page by page</h2>
+          <p class="section-desc">Explore real in-app screenshots captured from LibReady running on device. Click any card to zoom in full resolution.</p>
+
+          <!-- Filter Pills -->
+          <div class="gallery-filters" role="tablist" aria-label="Screen categories">
+            <button class="filter-pill filter-pill--active" data-filter="all" role="tab" aria-selected="true">All Screens (12)</button>
+            <button class="filter-pill" data-filter="library" role="tab" aria-selected="false">Shelves &amp; Library</button>
+            <button class="filter-pill" data-filter="reader" role="tab" aria-selected="false">Reading &amp; Themes</button>
+            <button class="filter-pill" data-filter="navigation" role="tab" aria-selected="false">TOC &amp; Search</button>
+            <button class="filter-pill" data-filter="community" role="tab" aria-selected="false">P2P &amp; Privacy</button>
+          </div>
+        </div>
+
+        <div class="screens__grid">
+          <!-- 1. Library Shelf View (Covers) -->
+          <article class="gallery-card reveal" data-category="library">
+            <div class="gallery-card__device" data-src="assets/screenshots/01-library.png" data-title="Wooden-Shelf Library (Covers View)" data-desc="Books stand on dark-wood shelves with last-read dates stamped above each cover. Filter by All, Reading, Finished, or Favourites with instant search.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/01-library.png" alt="Library shelf with covers facing forward" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Signature View</span>
+              <h3 class="gallery-card__title">Wooden-Shelf Library</h3>
+              <p class="gallery-card__desc">Covers rendered from book first pages, with last-read timestamps above each book and real shelf planks.</p>
+            </div>
+          </article>
+
+          <!-- 2. Classic Bookcase (Spines View) -->
+          <article class="gallery-card reveal" data-category="library">
+            <div class="gallery-card__device" data-src="assets/screenshots/02-library-spines.png" data-title="Classic Bookcase (Spines View)" data-desc="Books stand upright with colorful custom spines and gold-stamped titles, creating the look and feel of a physical personal library.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/02-library-spines.png" alt="Library shelf with spines facing out" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Alternate Style</span>
+              <h3 class="gallery-card__title">Spines Facing Out</h3>
+              <p class="gallery-card__desc">A classic bookcase packed with colourful spines. Tap any spine to pull out and preview the book.</p>
+            </div>
+          </article>
+
+          <!-- 2. Shelf Options: Spines vs Covers -->
+          <article class="gallery-card reveal" data-category="library">
+            <div class="gallery-card__device" data-src="assets/screenshots/11-shelves.png" data-title="Shelf Style Customization" data-desc="Customize your bookcase: switch between covers facing forward or classic colorful spines, and sort by recently read, title, author, or file size.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/11-shelves.png" alt="Arrange the shelves sheet showing covers vs spines" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Customization</span>
+              <h3 class="gallery-card__title">Arrange the Shelves</h3>
+              <p class="gallery-card__desc">Toggle between artwork view and spine bookcase mode. Reorder books by date, size, or author in seconds.</p>
+            </div>
+          </article>
+
+          <!-- 3. Reading View with Highlights & Toolbar -->
+          <article class="gallery-card reveal" data-category="reader">
+            <div class="gallery-card__device" data-src="assets/screenshots/03-reader.png" data-title="Reader &amp; Text Highlight Toolbar" data-desc="Immersive EPUB reading with full-screen layout. Select text for immediate highlighting, copying, sharing, or Claude AI queries.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/03-reader.png" alt="Reader view with text selection highlight toolbar" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Reader Experience</span>
+              <h3 class="gallery-card__title">Annotations &amp; Toolbar</h3>
+              <p class="gallery-card__desc">Highlight passages, copy snippets, jump to chapters, or view reading statistics from the bottom reader bar.</p>
+            </div>
+          </article>
+
+          <!-- 4. Reading Settings: Themes, Textures, Turn Styles -->
+          <article class="gallery-card reveal" data-category="reader">
+            <div class="gallery-card__device" data-src="assets/screenshots/05-themes.png" data-title="Themes, Textures &amp; Page Curl" data-desc="Paper, Sepia, Parchment, and OLED Black palettes. Textures include Smooth, Deckle/Linen, and Book Cloth. Five page-turn styles including real 3D page curl.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/05-themes.png" alt="Reading settings sheet with themes and page curl" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Atmosphere</span>
+              <h3 class="gallery-card__title">Tactile Reading Settings</h3>
+              <p class="gallery-card__desc">Fine-tune font size, line spacing, margins, justification, aged paper textures, and genuine corner page curl.</p>
+            </div>
+          </article>
+
+          <!-- 5. Book Details Preview -->
+          <article class="gallery-card reveal" data-category="library">
+            <div class="gallery-card__device" data-src="assets/screenshots/02-reading.png" data-title="Book Details &amp; Resume" data-desc="Inspect page counts, file format badges, file size, reading progress percentage, and book summary before continuing.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/02-reading.png" alt="Book details sheet showing summary and progress" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Information</span>
+              <h3 class="gallery-card__title">Book Synopsis &amp; Stats</h3>
+              <p class="gallery-card__desc">Full metadata card with format pill, progress meter, page index, and one-tap resume reading button.</p>
+            </div>
+          </article>
+
+          <!-- 7. Book Management Actions -->
+          <article class="gallery-card gallery-card--hidden reveal" data-category="library">
+            <div class="gallery-card__device" data-src="assets/screenshots/06-options.png" data-title="Book Management Actions" data-desc="Long-press any book to rename titles, add to favourites, rebuild original cover, or pick covers from your gallery or book pages.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/06-options.png" alt="Book management actions sheet" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Controls</span>
+              <h3 class="gallery-card__title">Granular Management</h3>
+              <p class="gallery-card__desc">Complete control: custom cover assignment from book pages or camera roll, title renaming, and local sharing.</p>
+            </div>
+          </article>
+
+          <!-- 8. Custom Covers & Library Controls -->
+          <article class="gallery-card gallery-card--hidden reveal" data-category="library">
+            <div class="gallery-card__device" data-src="assets/screenshots/12-book-actions-scroll.png" data-title="Custom Covers &amp; Shelf Controls" data-desc="Choose covers from any page of the book or from your device gallery, rebuild original covers, view details, or permanently remove from library.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/12-book-actions-scroll.png" alt="Book options sheet showing cover choice and remove options" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Artwork &amp; Safety</span>
+              <h3 class="gallery-card__title">Cover Art &amp; Deletion</h3>
+              <p class="gallery-card__desc">Pick new cover art from any internal page or your gallery, rebuild original thumbnails, or cleanly delete files.</p>
+            </div>
+          </article>
+
+          <!-- 9. Table of Contents -->
+          <article class="gallery-card gallery-card--hidden reveal" data-category="navigation">
+            <div class="gallery-card__device" data-src="assets/screenshots/09-toc.png" data-title="Table of Contents &amp; Chapters" data-desc="Navigate large volumes with multi-chapter table of contents, instant chapter search, and clear page numbering.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/09-toc.png" alt="Table of contents sheet with search" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Navigation</span>
+              <h3 class="gallery-card__title">Table of Contents</h3>
+              <p class="gallery-card__desc">Fast chapter exploration with filterable search field and instant jump-to-page anchors.</p>
+            </div>
+          </article>
+
+          <!-- 10. In-Book Search -->
+          <article class="gallery-card gallery-card--hidden reveal" data-category="navigation">
+            <div class="gallery-card__device" data-src="assets/screenshots/10-search.png" data-title="In-Book Full Text Search" data-desc="Search any word or phrase across every page of your book with instant matching snippets and jump-to-page navigation.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/10-search.png" alt="In-book full-text search sheet" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Search</span>
+              <h3 class="gallery-card__title">Full-Text In-Book Search</h3>
+              <p class="gallery-card__desc">Lightning-fast keyword lookups with contextual phrase snippets and one-tap destination jumping.</p>
+            </div>
+          </article>
+
+          <!-- 11. Community Store P2P -->
+          <article class="gallery-card gallery-card--hidden reveal" data-category="community">
+            <div class="gallery-card__device" data-src="assets/screenshots/08-community.png" data-title="Local P2P Community Store" data-desc="Share and discover public-domain books directly with other nearby readers without any centralized cloud servers.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/08-community.png" alt="Community store showing peer-to-peer shared books" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Peer-to-Peer</span>
+              <h3 class="gallery-card__title">Community Exchange</h3>
+              <p class="gallery-card__desc">Decentralized book sharing directly between devices. Discover titles, filter formats, and download locally.</p>
+            </div>
+          </article>
+
+          <!-- 12. Privacy & Identity Settings -->
+          <article class="gallery-card gallery-card--hidden reveal" data-category="community">
+            <div class="gallery-card__device" data-src="assets/screenshots/07-settings.png" data-title="Privacy &amp; Identity Settings" data-desc="True privacy: encrypted identity backup, local peer ID diagnostics, and 100% offline sandbox guarantees.">
+              <div class="phone-frame phone-frame--card">
+                <div class="phone-frame__camera"></div>
+                <div class="phone-frame__screen">
+                  <img src="assets/screenshots/07-settings.png" alt="App settings screen showing privacy and encrypted backup" class="phone-frame__img" loading="lazy" />
+                  <div class="phone-frame__glare"></div>
+                  <div class="gallery-card__zoom-badge">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="gallery-card__meta">
+              <span class="gallery-card__tag">Security</span>
+              <h3 class="gallery-card__title">Offline Identity &amp; Backup</h3>
+              <p class="gallery-card__desc">Export encrypted identity recovery files. No phone number, email, or third-party sign-in ever required.</p>
+            </div>
+          </article>
+        </div>
+
+        <!-- Mobile Swipe Hint -->
+        <div class="screens__mobile-hint" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          <span>Swipe horizontally to browse screenshots</span>
+        </div>
+
+        <!-- Load More Button -->
+        <div class="screens__load-more-wrap">
+          <button class="btn btn--outline btn--load-more" id="load-more-btn" aria-expanded="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+            <span class="load-more-text">Load More Screenshots (6 remaining)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════ FEATURES GRID ════════════════════ -->
+    <section id="features" class="features">
+      <div class="container">
+        <div class="section-header reveal">
+          <span class="kicker">Engineered for Readers</span>
+          <h2 class="section-title">Everything you love about real books, digitized</h2>
+          <p class="section-desc">From file fingerprinting to tactile page turning, every interaction is crafted for quiet focus.</p>
+        </div>
+
+        <div class="features__grid">
+          <!-- 1 -->
+          <article class="card reveal">
+            <div class="card__icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            </div>
+            <span class="card__kicker">Physical Shelf Feel</span>
+            <h3>Realistic Wooden Shelves</h3>
+            <p>Books rest on dark-wooden shelves with realistic shadows and last-read dates. Switch between artwork cover view or classic spine view with a single tap.</p>
+          </article>
+
+          <!-- 2 -->
+          <article class="card reveal">
+            <div class="card__icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            </div>
+            <span class="card__kicker">Physics &amp; Gestures</span>
+            <h3>Real Page-Curl Physics</h3>
+            <p>Drag the page corner and watch the paper peel and bend across the screen. Also supports book flip, smooth slide, gentle fade, or instant page turns.</p>
+          </article>
+
+          <!-- 3 -->
+          <article class="card reveal">
+            <div class="card__icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            </div>
+            <span class="card__kicker">Paper &amp; Textures</span>
+            <h3>Tactile Paper Palettes</h3>
+            <p>Choose between Paper, Sepia, Parchment, and OLED Black. Layer authentic aged fiber paper textures including Smooth, Deckle Linen, and Book Cloth.</p>
+          </article>
+
+          <!-- 4 -->
+          <article class="card reveal">
+            <div class="card__icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <span class="card__kicker">Air-Gapped Guarantee</span>
+            <h3>100% Offline by Design</h3>
+            <p>No analytics, no sign-in, no telemetry, and <strong>no internet permission declared</strong> on Android. Everything lives in your private device sandbox.</p>
+          </article>
+
+          <!-- 5 -->
+          <article class="card reveal">
+            <div class="card__icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <span class="card__kicker">Decentralized P2P</span>
+            <h3>Community Sharing</h3>
+            <p>Share and receive books directly with nearby devices over encrypted local peer-to-peer networks. No intermediaries, no accounts, and no central host.</p>
+          </article>
+
+          <!-- 6 -->
+          <article class="card reveal">
+            <div class="card__icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <span class="card__kicker">Smart Storage</span>
+            <h3>Batch Import &amp; Dedup</h3>
+            <p>Import dozens of PDF and EPUB files simultaneously. Cryptographic fingerprinting ensures the same file is never duplicated even if renamed.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════ INTERACTIVE THEME SIMULATOR ════════════════════ -->
+    <section id="themes" class="themes-section">
+      <div class="container">
+        <div class="section-header reveal">
+          <span class="kicker">Interactive Studio</span>
+          <h2 class="section-title">Test the reading experience live</h2>
+          <p class="section-desc">Switch color themes, toggle paper textures, and adjust typography below to see how LibReady renders book pages.</p>
+        </div>
+
+        <div class="simulator reveal">
+          <!-- Simulator Controls Sidebar -->
+          <div class="simulator__controls">
+            <div class="control-group">
+              <label class="control-label">Page Color Theme</label>
+              <div class="theme-buttons">
+                <button class="btn-swatch btn-swatch--active" data-theme="paper" title="Paper Theme">
+                  <span class="swatch-preview" style="background:#FFFFFB; border:1px solid #D5C6AA"></span>
+                  <span class="swatch-name">Paper</span>
+                </button>
+                <button class="btn-swatch" data-theme="sepia" title="Sepia Theme">
+                  <span class="swatch-preview" style="background:#F3E1C4; border:1px solid #C49F70"></span>
+                  <span class="swatch-name">Sepia</span>
+                </button>
+                <button class="btn-swatch" data-theme="night" title="Night Theme">
+                  <span class="swatch-preview" style="background:#1C1813; border:1px solid #3E352B"></span>
+                  <span class="swatch-name">Night</span>
+                </button>
+                <button class="btn-swatch" data-theme="black" title="Black OLED Theme">
+                  <span class="swatch-preview" style="background:#090807; border:1px solid #2B2520"></span>
+                  <span class="swatch-name">Black</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <label class="control-label">Paper Texture</label>
+              <div class="texture-buttons">
+                <button class="btn-texture btn-texture--active" data-texture="smooth">Smooth</button>
+                <button class="btn-texture" data-texture="linen">Deckle Linen</button>
+                <button class="btn-texture" data-texture="cloth">Book Cloth</button>
+              </div>
+            </div>
+
+            <div class="control-group">
+              <div class="slider-header">
+                <label for="font-size-slider" class="control-label">Font Size</label>
+                <span id="font-size-val" class="slider-val">18px</span>
+              </div>
+              <input type="range" id="font-size-slider" min="14" max="24" value="18" class="range-slider" />
+            </div>
+
+            <div class="control-group">
+              <div class="slider-header">
+                <label for="line-height-slider" class="control-label">Line Spacing</label>
+                <span id="line-height-val" class="slider-val">1.65</span>
+              </div>
+              <input type="range" id="line-height-slider" min="1.3" max="2.1" step="0.05" value="1.65" class="range-slider" />
+            </div>
+
+            <div class="control-group">
+              <label class="control-toggle">
+                <input type="checkbox" id="justify-toggle" checked />
+                <span class="toggle-track"></span>
+                <span class="toggle-label">Justify text margins</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Simulator Live Page View -->
+          <div class="simulator__preview-wrap">
+            <div class="sim-page sim-page--paper sim-texture--smooth" id="sim-page">
+              <div class="sim-page__header">
+                <span class="sim-page__book">Learning SQL — Alan Beaulieu</span>
+                <span class="sim-page__num">Page 42</span>
+              </div>
+
+              <div class="sim-page__body" id="sim-body">
+                <p class="sim-page__dropcap">
+                  SQL was developed in the early 1970s at IBM’s San Jose research facilities. It is a declarative language, meaning that queries describe <em>what data is needed</em> rather than <em>how to navigate disk storage</em>.
+                </p>
+                <p>
+                  As relational engines grew in power and sophistication, database engineers discovered that separating data storage abstractions from high-level queries allowed for dramatic optimizations: b-tree indexing, query caching, and dynamic execution plans.
+                </p>
+                <blockquote class="sim-page__quote">
+                  "Reading is to the mind what exercise is to the body. A library in your pocket should feel as permanent, quiet, and timeless as a physical book."
+                </blockquote>
+                <p>
+                  With LibReady, every page boundary is calculated based on exact character offsets. When you adjust font size, margins, or textures, your pagination automatically recalculates without losing your spot.
+                </p>
+              </div>
+
+              <div class="sim-page__footer">
+                <span class="sim-page__tag">LibReady EPUB Engine</span>
+                <span class="sim-page__progress">12% read</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════ PRIVACY SECTION ════════════════════ -->
+    <section id="privacy" class="privacy-section">
+      <div class="container">
+        <div class="privacy__card reveal">
+          <div class="privacy__content">
+            <span class="kicker">Privacy Guarantee</span>
+            <h2 class="section-title">Built offline from line zero</h2>
+            <p class="section-desc">
+              Most reading apps require an account, upload your reading speed to remote servers, and track every bookmark you make. LibReady rejects all of that.
+            </p>
+
+            <div class="privacy__grid">
+              <div class="privacy-item">
+                <div class="privacy-item__icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                </div>
+                <div>
+                  <h4>No Network Permissions</h4>
+                  <p>The Android release APK declares no internet permission in its manifest. The operating system prevents the app from accessing external networks.</p>
+                </div>
+              </div>
+
+              <div class="privacy-item">
+                <div class="privacy-item__icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </div>
+                <div>
+                  <h4>Isolated App Sandbox</h4>
+                  <p>All imported files, generated cover art, reading offsets, and notes are stored strictly inside the device’s sandboxed Documents folder.</p>
+                </div>
+              </div>
+
+              <div class="privacy-item">
+                <div class="privacy-item__icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>
+                </div>
+                <div>
+                  <h4>No Accounts or Logins</h4>
+                  <p>No usernames, passwords, or emails. Your identity is a local cryptographic key pair stored solely on your hardware.</p>
+                </div>
+              </div>
+
+              <div class="privacy-item">
+                <div class="privacy-item__icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </div>
+                <div>
+                  <h4>True Clean Deletion</h4>
+                  <p>When you delete a book, its files, cover thumbnails, reading progress, and bookmark database records are permanently erased.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Privacy Seal Card -->
+          <div class="privacy__badge-box">
+            <div class="seal-icon">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3 class="seal-title">Offline Certified</h3>
+            <p class="seal-desc">Verified Android Manifest contains zero network permission declarations.</p>
+            <div class="seal-tags">
+              <span>No Cloud</span>
+              <span>No Telemetry</span>
+              <span>No Ads</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════ HOW IT WORKS ════════════════════ -->
+    <section id="how-it-works" class="how-section">
+      <div class="container">
+        <div class="section-header reveal">
+          <span class="kicker">Quick Onboarding</span>
+          <h2 class="section-title">From files to wooden shelves in seconds</h2>
+          <p class="section-desc">No complicated sync setups or library configurations. Just import and read.</p>
+        </div>
+
+        <div class="how__grid">
+          <div class="how-step reveal">
+            <div class="how-step__num">01</div>
+            <h3>Import Files</h3>
+            <p>Tap <strong>+ Add books</strong> and select any PDF or EPUB files from your device storage or downloads. LibReady checks file fingerprints to avoid duplicates.</p>
+          </div>
+
+          <div class="how-step reveal">
+            <div class="how-step__num">02</div>
+            <h3>Covers &amp; Spines</h3>
+            <p>Cover art is automatically generated from the first page or embedded EPUB artwork. You can also customize covers from your photo gallery or book pages.</p>
+          </div>
+
+          <div class="how-step reveal">
+            <div class="how-step__num">03</div>
+            <h3>Immerse in Reading</h3>
+            <p>Tap any cover to open. Enjoy physical page-curl gestures, highlight text, search chapters, and pick up right where you left off on any shelf.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ════════════════════ DOWNLOAD SECTION ════════════════════ -->
+    <section id="download" class="download-section">
+      <div class="container">
+        <div class="download__card reveal">
+          <div class="download__glow"></div>
+          <div class="download__content">
+            <span class="kicker">Get Started Today</span>
+            <h2 class="section-title">Your private library is ready</h2>
+            <p class="section-desc">Download LibReady for Android. Free, open source, and completely self-contained.</p>
+
+            <div class="download__buttons">
+              <a href="https://github.com/Rvjais/Book-Library/releases/latest" class="btn btn--primary btn--lg" target="_blank" rel="noopener">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>
+                  <strong>Download APK — v1.0.0</strong>
+                  <small>Direct release for Android (7.0+)</small>
+                </span>
+              </a>
+
+              <a href="#" class="btn btn--outline btn--lg btn--disabled" aria-disabled="true">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm1 14.93V17a1 1 0 0 1-2 0v-.07A7 7 0 0 1 5.07 11H5a1 1 0 0 1 0-2h.07A7 7 0 0 1 11 3.07V3a1 1 0 0 1 2 0v.07A7 7 0 0 1 18.93 9H19a1 1 0 0 1 0 2h-.07A7 7 0 0 1 13 16.93z"/></svg>
+                <span>
+                  <strong>App Store</strong>
+                  <small>iOS release coming soon</small>
+                </span>
+              </a>
+            </div>
+
+            <div class="download__install-guide">
+              <h4>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                Installing on Android
+              </h4>
+              <p>Download the APK file and tap it in your browser or file manager. If prompted, toggle "Allow from this source" in system settings to permit sideloading.</p>
+            </div>
+          </div>
+
+          <div class="download__visual">
+            <div class="phone-frame phone-frame--download">
+              <div class="phone-frame__camera"></div>
+              <div class="phone-frame__screen">
+                <img src="assets/screenshots/01-library.png" alt="LibReady installed on device" class="phone-frame__img" />
+                <div class="phone-frame__glare"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -228,22 +788,49 @@
     </section>
   </main>
 
-  <footer class="shell">
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <img src="assets/app-icon.png" alt="LibReady icon" class="footer-logo" />
-        <div class="footer-name">Lib<span class="logo-accent">Ready</span></div>
+  <!-- ════════════════════ LIGHTBOX MODAL ════════════════════ -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot lightbox" hidden>
+    <div class="lightbox__overlay" id="lightbox-overlay"></div>
+    <div class="lightbox__content">
+      <button class="lightbox__close" id="lightbox-close" aria-label="Close image preview">&times;</button>
+      <div class="lightbox__device-wrap">
+        <div class="phone-frame phone-frame--lightbox">
+          <div class="phone-frame__camera"></div>
+          <div class="phone-frame__screen">
+            <img src="" alt="" id="lightbox-img" class="phone-frame__img" />
+            <div class="phone-frame__glare"></div>
+          </div>
+        </div>
       </div>
-      <p class="footer-copy">
-        A private, offline library and reader for PDF and EPUB books.<br />
-        Built with Flutter · No server · No account · No tracking
-      </p>
-      <div class="footer-links">
-        <a href="#features">Features</a>
-        <a href="#privacy">Privacy</a>
-        <a href="https://github.com/Rvjais/Book-Library" target="_blank" rel="noopener">Source on GitHub</a>
+      <div class="lightbox__info">
+        <h3 id="lightbox-title" class="lightbox__title"></h3>
+        <p id="lightbox-desc" class="lightbox__desc"></p>
       </div>
-      <p class="footer-credit">Made with a love of books.</p>
+    </div>
+  </div>
+
+  <!-- ════════════════════ FOOTER ════════════════════ -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <div class="footer__top">
+        <div class="footer__brand">
+          <img src="assets/app-icon.png" alt="" class="footer__icon" width="36" height="36" />
+          <span class="brand__text">Lib<span class="brand__accent">Ready</span></span>
+        </div>
+        <p class="footer__tagline">A private, offline bookshelf and reader for EPUB and PDF books.</p>
+        <div class="footer__nav">
+          <a href="#screens">Screens</a>
+          <a href="#features">Features</a>
+          <a href="#themes">Themes</a>
+          <a href="#privacy">Privacy</a>
+          <a href="https://github.com/Rvjais/Book-Library" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+
+      <div class="footer__bottom">
+        <p class="footer__legal">&copy; 2026 LibReady Project · Free &amp; Open Source</p>
+        <p class="footer__privacy-note">Zero data collection · Zero cloud sync · All books stay on your hardware</p>
+      </div>
     </div>
   </footer>
 

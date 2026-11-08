@@ -198,19 +198,48 @@ class Paginator {
               Offset(availableWidth, math.max(0, fittedHeight - 0.5)),
             );
             endInBlock = consumed + position.offset;
+
+            // Snap backwards to previous whitespace so words are never cut in half
+            if (endInBlock < textLength) {
+              final spaceIdx = block.text.lastIndexOf(RegExp(r'\s'), endInBlock);
+              if (spaceIdx > consumed) {
+                endInBlock = spaceIdx;
+              }
+            }
           }
           if (endInBlock <= consumed) {
             endInBlock = math.min(textLength, consumed + 1);
           }
 
-          final fragment = _spans(block.runs, consumed, endInBlock, baseStyle);
-          final span = TextSpan(style: baseStyle, children: fragment);
-          final fragmentPainter = TextPainter(
+          var fragment = _spans(block.runs, consumed, endInBlock, baseStyle);
+          var span = TextSpan(style: baseStyle, children: fragment);
+          var fragmentPainter = TextPainter(
             text: span,
             textAlign: settings.textAlign,
             textDirection: TextDirection.ltr,
             textScaler: TextScaler.noScaling,
           )..layout(maxWidth: availableWidth);
+
+          // Verify that fragmentPainter strictly fits within availableHeight and fit lines.
+          // If word wrapping pushed it to an extra line, backtrack word by word.
+          while (endInBlock > consumed + 1 &&
+              (fragmentPainter.computeLineMetrics().length > fit ||
+                  fragmentPainter.height > availableHeight + 0.5)) {
+            final spaceIdx = block.text.lastIndexOf(RegExp(r'\s'), endInBlock - 1);
+            if (spaceIdx > consumed) {
+              endInBlock = spaceIdx;
+            } else {
+              endInBlock--;
+            }
+            fragment = _spans(block.runs, consumed, endInBlock, baseStyle);
+            span = TextSpan(style: baseStyle, children: fragment);
+            fragmentPainter = TextPainter(
+              text: span,
+              textAlign: settings.textAlign,
+              textDirection: TextDirection.ltr,
+              textScaler: TextScaler.noScaling,
+            )..layout(maxWidth: availableWidth);
+          }
 
           if (draft.items.isNotEmpty &&
               draft.used + before + fragmentPainter.height > height + 0.5) {
@@ -234,6 +263,11 @@ class Paginator {
           cursor = block.offset + consumed;
           pendingAfter = metrics.spacingAfter * settings.fontSize;
           firstFragment = false;
+
+          // Skip whitespace before starting the next page fragment
+          while (consumed < textLength && RegExp(r'\s').hasMatch(block.text[consumed])) {
+            consumed++;
+          }
 
           if (consumed < textLength) {
             newPage(block.offset + consumed);

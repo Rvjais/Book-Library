@@ -1,18 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:libready/data/book_storage.dart';
-import 'package:libready/features/community/data/community_book.dart';
 import 'package:libready/features/identity/data/peer_identity.dart';
 import 'package:libready/features/p2p/data/content_advertisement.dart';
 import 'package:libready/features/p2p/ice/ice_agent.dart';
 import 'package:libready/features/p2p/signaling/signaling_client.dart';
 import 'package:libready/features/p2p/stun/stun_client.dart';
-import 'package:meta/meta.dart';
 
 /// A content source discovered through the signaling server.
 @immutable
@@ -63,7 +60,7 @@ class P2pService extends ChangeNotifier {
   P2pService({
     required this.identity,
     required this.storage,
-    required this.signalingServerUrl,
+    this.signalingServerUrl = 'ws://127.0.0.1:8080',
   });
 
   final PeerIdentity identity;
@@ -115,7 +112,20 @@ class P2pService extends ChangeNotifier {
       serverUrl: signalingServerUrl,
     );
     _signaling!.messageStream.listen(_handleSignalMessage);
-    await _signaling!.connect();
+    try {
+      await _signaling!.connect();
+      // Re-advertise any books that were shared before signaling connected
+      for (final ad in _myAdvertisements.values) {
+        await _signaling?.advertiseContent(
+          contentHash: ad.contentHash,
+          title: ad.title,
+          author: ad.author,
+          format: ad.format,
+          fileSize: ad.fileSize,
+          port: _listenPort,
+        );
+      }
+    } catch (_) {}
 
     _initialized = true;
     notifyListeners();
@@ -153,8 +163,6 @@ class P2pService extends ChangeNotifier {
     required String format,
     required int fileSize,
   }) async {
-    if (!_initialized || _signaling == null) return;
-
     final ad = ContentAdvertisement(
       contentHash: contentHash,
       title: title,
@@ -171,23 +179,47 @@ class P2pService extends ChangeNotifier {
 
     _myAdvertisements[contentHash] = ad;
 
-    await _signaling!.advertiseContent(
+    // Immediately reflect our own advertised book into local catalog
+    _catalog[contentHash] = RemoteContentSource(
       contentHash: contentHash,
       title: title,
       author: author,
       format: format,
       fileSize: fileSize,
+      peerId: identity.peerId,
+      userId: identity.userId,
+      displayName: identity.displayName,
+      address: _publicAddress?.address ?? '127.0.0.1',
       port: _listenPort,
+      isReachable: true,
+      lastSeen: DateTime.now().millisecondsSinceEpoch,
     );
+
+    if (_initialized && _signaling != null) {
+      try {
+        await _signaling?.advertiseContent(
+          contentHash: contentHash,
+          title: title,
+          author: author,
+          format: format,
+          fileSize: fileSize,
+          port: _listenPort,
+        );
+      } catch (_) {}
+    }
 
     notifyListeners();
   }
 
   /// Stop sharing a book.
   Future<void> withdrawBook(String contentHash) async {
-    if (!_initialized || _signaling == null) return;
     _myAdvertisements.remove(contentHash);
-    await _signaling!.withdrawContent(contentHash);
+    _catalog.remove(contentHash);
+    if (_initialized && _signaling != null) {
+      try {
+        await _signaling?.withdrawContent(contentHash);
+      } catch (_) {}
+    }
     notifyListeners();
   }
 
@@ -351,9 +383,9 @@ class P2pService extends ChangeNotifier {
               buffer[3];
           buffer.removeRange(0, 4);
         }
-        if (buffer.length < expectedLength!) break;
-        final chunk = Uint8List.fromList(buffer.sublist(0, expectedLength!));
-        buffer.removeRange(0, expectedLength!);
+        if (buffer.length < expectedLength) break;
+        final chunk = Uint8List.fromList(buffer.sublist(0, expectedLength));
+        buffer.removeRange(0, expectedLength);
         expectedLength = null;
 
         try {
@@ -383,6 +415,7 @@ class P2pService extends ChangeNotifier {
     return sha256.convert(bytes).toString();
   }
 
+  @override
   void dispose() {
     _signaling?.disconnect();
     _serverSocket?.close();

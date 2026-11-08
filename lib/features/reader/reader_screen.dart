@@ -74,16 +74,25 @@ class _ReaderScreenState extends State<ReaderScreen>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final size = MediaQuery.sizeOf(context);
-    final insets = MediaQuery.paddingOf(context);
+    final insets = MediaQuery.viewPaddingOf(context);
 
     if (_openedSize == null) {
       unawaited(_openEngine());
       return;
     }
 
+    // Only re-layout if the physical display geometry actually changed
+    // (such as rotating between portrait and landscape).
+    // Never re-layout for soft keyboard, bottom sheets, or search popups.
+    final sizeChanged = (_openedSize!.width - size.width).abs() > 2 ||
+        (_openedSize!.height - size.height).abs() > 2;
+    final insetsChanged =
+        (_openedInsets!.horizontal - insets.horizontal).abs() > 2 ||
+            (_openedInsets!.vertical - insets.vertical).abs() > 2;
+
     if (_engine != null &&
         widget.book.isEpub &&
-        (_openedSize != size || _openedInsets != insets)) {
+        (sizeChanged || insetsChanged)) {
       _reopenForLayout();
     }
   }
@@ -118,8 +127,11 @@ class _ReaderScreenState extends State<ReaderScreen>
   Size _contentSize(Size screen, EdgeInsets insets) {
     final margins = _settings.margins;
     final width = screen.width - insets.horizontal - margins * 2;
-    // EpubPageView uses 0.9 * margins above and below the text.
-    final height = screen.height - insets.vertical - margins * 0.9 * 2;
+    // Reserve space for top and bottom margins, plus clearance for font descenders
+    // and the page number footer.
+    final bottomReserve = _settings.showPageNumber ? 22.0 : 8.0;
+    final height =
+        screen.height - insets.vertical - margins * 0.9 * 2 - bottomReserve;
     return Size(math.max(160.0, width), math.max(220.0, height));
   }
 
@@ -160,7 +172,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   Future<void> _openEngine({ReadingPosition? at}) async {
     final generation = ++_generation;
     final size = MediaQuery.sizeOf(context);
-    final insets = MediaQuery.paddingOf(context);
+    final insets = MediaQuery.viewPaddingOf(context);
     final hadEngine = _engine != null;
     final start = at ?? widget.book.readingPosition;
 
@@ -252,7 +264,8 @@ class _ReaderScreenState extends State<ReaderScreen>
             previous.lineHeight != value.lineHeight ||
             previous.margins != value.margins ||
             previous.serif != value.serif ||
-            previous.justify != value.justify;
+            previous.justify != value.justify ||
+            previous.showPageNumber != value.showPageNumber;
 
     if (typographyChanged && widget.book.isEpub) {
       _settingsTimer?.cancel();
@@ -394,10 +407,6 @@ class _ReaderScreenState extends State<ReaderScreen>
   }
 
   Future<void> _addHighlightPrompt() async {
-    if (widget.book.isPdf) {
-      await _showPdfUnsupported('Text highlighting');
-      return;
-    }
     final engine = _engine;
     if (engine == null) return;
     final controller = TextEditingController();
@@ -513,40 +522,6 @@ class _ReaderScreenState extends State<ReaderScreen>
     if (page != null && mounted) _jumpTo(page);
   }
 
-  /// PDF pages are fixed images, so text-only tools cannot work on them. Make
-  /// the limitation explicit instead of opening an empty sheet.
-  Future<void> _showPdfUnsupported(String feature) async {
-    final theme = Theme.of(context);
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          icon: const Icon(
-            Icons.picture_as_pdf_outlined,
-            size: 30,
-            color: AppColors.brass,
-          ),
-          title: Text('$feature needs EPUB'),
-          content: Text(
-            "PDF books don't support this feature. Please use the EPUB format "
-            'of the book to use it.',
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.45,
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          actions: [
-            FilledButton.tonal(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Got it'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _openSettings() async {
     await showReaderSettingsSheet(
       context,
@@ -572,7 +547,7 @@ class _ReaderScreenState extends State<ReaderScreen>
   @override
   Widget build(BuildContext context) {
     final palette = _settings.palette;
-    final insets = MediaQuery.paddingOf(context);
+    final insets = MediaQuery.viewPaddingOf(context);
     final engine = _engine;
 
     return PopScope(
@@ -581,6 +556,7 @@ class _ReaderScreenState extends State<ReaderScreen>
         if (!didPop) unawaited(_close());
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: palette.page,
         body: Stack(
           fit: StackFit.expand,
@@ -854,7 +830,6 @@ class _ReaderChrome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPdf = book.isPdf;
     final chapter = engine.chapterTitleFor(pageIndex);
     final subtitle = chapter.trim().isNotEmpty
         ? chapter
@@ -1016,29 +991,27 @@ class _ReaderChrome extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        if (!isPdf) ...[
-                          Expanded(
-                            child: _ChromeControl(
-                              icon: Icons.format_list_bulleted_rounded,
-                              label: 'Contents',
-                              onTap: onToc,
-                            ),
+                        Expanded(
+                          child: _ChromeControl(
+                            icon: Icons.format_list_bulleted_rounded,
+                            label: 'Contents',
+                            onTap: onToc,
                           ),
-                          Expanded(
-                            child: _ChromeControl(
-                              icon: Icons.search_rounded,
-                              label: 'Search',
-                              onTap: onSearch,
-                            ),
+                        ),
+                        Expanded(
+                          child: _ChromeControl(
+                            icon: Icons.search_rounded,
+                            label: 'Search',
+                            onTap: onSearch,
                           ),
-                          Expanded(
-                            child: _ChromeControl(
-                              icon: Icons.highlight_rounded,
-                              label: 'Highlights',
-                              onTap: onHighlights,
-                            ),
+                        ),
+                        Expanded(
+                          child: _ChromeControl(
+                            icon: Icons.highlight_rounded,
+                            label: 'Highlights',
+                            onTap: onHighlights,
                           ),
-                        ],
+                        ),
                         Expanded(
                           child: _ChromeControl(
                             icon: Icons.bookmarks_outlined,

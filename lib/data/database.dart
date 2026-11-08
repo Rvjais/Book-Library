@@ -13,9 +13,13 @@ class AppDatabase {
     final path = p.join(docs.path, 'libready.db');
     final opened = await openDatabase(
       path,
-      version: 4,
+      version: 5,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
+      },
+      onOpen: (db) async {
+        // Ensure schema columns are present even if previous upgrade steps were interrupted.
+        await _ensureColumns(db);
       },
       onCreate: _create,
       onUpgrade: _upgrade,
@@ -24,9 +28,17 @@ class AppDatabase {
     return opened;
   }
 
+  Future<void> _ensureColumns(Database db) async {
+    await _addBookColumnQuietly(db, 'is_shared', 'INTEGER NOT NULL DEFAULT 0');
+    await _addBookColumnQuietly(db, 'content_hash', 'TEXT NOT NULL DEFAULT ""');
+    await _addBookColumnQuietly(db, 'description', 'TEXT');
+    await _addBookColumnQuietly(db, 'language', 'TEXT');
+  }
+
   Future<void> _create(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE books (\n        id INTEGER PRIMARY KEY AUTOINCREMENT,
+      CREATE TABLE books (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
         author TEXT NOT NULL DEFAULT '',
         file_path TEXT NOT NULL,
@@ -41,6 +53,8 @@ class AppDatabase {
         position TEXT NOT NULL DEFAULT '{}',
         is_favorite INTEGER NOT NULL DEFAULT 0,
         is_finished INTEGER NOT NULL DEFAULT 0,
+        is_shared INTEGER NOT NULL DEFAULT 0,
+        content_hash TEXT NOT NULL DEFAULT '',
         description TEXT,
         language TEXT
       )
@@ -115,12 +129,24 @@ class AppDatabase {
       await _createHighlightAnchorIndex(db);
     }
     if (oldVersion < 4) {
-      await db.execute(
-        'ALTER TABLE books ADD COLUMN is_shared INTEGER NOT NULL DEFAULT 0',
-      );
-      await db.execute(
-        'ALTER TABLE books ADD COLUMN content_hash TEXT NOT NULL DEFAULT ""',
-      );
+      await _addBookColumnQuietly(db, 'is_shared', 'INTEGER NOT NULL DEFAULT 0');
+      await _addBookColumnQuietly(db, 'content_hash', 'TEXT NOT NULL DEFAULT ""');
+    }
+    if (oldVersion < 5) {
+      await _addBookColumnQuietly(db, 'is_shared', 'INTEGER NOT NULL DEFAULT 0');
+      await _addBookColumnQuietly(db, 'content_hash', 'TEXT NOT NULL DEFAULT ""');
+    }
+  }
+
+  Future<void> _addBookColumnQuietly(
+    Database db,
+    String column,
+    String type,
+  ) async {
+    try {
+      await db.execute('ALTER TABLE books ADD COLUMN $column $type');
+    } catch (_) {
+      // Column may already exist
     }
   }
 

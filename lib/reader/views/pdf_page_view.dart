@@ -171,8 +171,15 @@ class _PdfPageViewState extends State<PdfPageView> {
     }
   }
 
-  void _onLongPressStart(LongPressStartDetails details, Rect pageRect) {
-    final text = _pageText;
+  Future<void> _onLongPressStart(LongPressStartDetails details, Rect pageRect) async {
+    var text = _pageText;
+    if (text == null) {
+      text = await widget.engine.loadTextFor(widget.pageIndex);
+      if (!mounted) return;
+      if (text != null) {
+        setState(() => _pageText = text);
+      }
+    }
     if (text == null || text.fragments.isEmpty) return;
     if (!pageRect.contains(details.localPosition)) return;
 
@@ -182,13 +189,13 @@ class _PdfPageViewState extends State<PdfPageView> {
 
     PdfPageTextFragment? targetFragment;
     for (final f in text.fragments) {
-      if (f.bounds.containsPoint(pdfPoint, margin: 4)) {
+      if (f.bounds.containsPoint(pdfPoint, margin: 8)) {
         targetFragment = f;
         break;
       }
     }
     targetFragment ??= text.fragments.cast<PdfPageTextFragment?>().firstWhere(
-      (f) => f != null && f.bounds.distanceSquaredTo(pdfPoint) < 100,
+      (f) => f != null && f.bounds.distanceSquaredTo(pdfPoint) < 400,
       orElse: () => null,
     );
 
@@ -217,9 +224,11 @@ class _PdfPageViewState extends State<PdfPageView> {
       wordEnd++;
     }
 
-    if (wordStart < wordEnd) {
-      final start = targetFragment.index + wordStart;
-      final end = targetFragment.index + wordEnd;
+    final startChar = wordStart < wordEnd ? wordStart : charInFrag;
+    final endChar = wordStart < wordEnd ? wordEnd : math.min(charInFrag + 1, fragText.length);
+    final start = targetFragment.index + startChar;
+    final end = targetFragment.index + endChar;
+    if (start < end) {
       final sel = PdfPageTextRange(
         pageText: text,
         start: start.clamp(0, text.fullText.length),
