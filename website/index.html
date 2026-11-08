@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LibReady — Your private, offline library</title>
+  <meta name="description" content="LibReady is a private, offline library and reader for PDF and EPUB books. No account, no server, no network. Built for Android and iOS." />
+  <meta name="theme-color" content="#F6EFE0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Georgia:wght@400;700&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/png" href="assets/app-icon.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a href="#download" class="skip-link">Skip to download</a>
+
+  <header class="shell" id="header">
+    <div class="header-inner">
+      <a href="#" class="logo" aria-label="LibReady home">
+        <img src="assets/app-icon.png" alt="LibReady icon" class="logo-img" />
+        <span class="logo-text">Lib<span class="logo-accent">Ready</span></span>
+      </a>
+
+      <nav class="nav" id="nav">
+        <ul class="nav-list">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#themes">Reader Themes</a></li>
+          <li><a href="#privacy">Privacy</a></li>
+          <li><a href="#download" class="nav-button">Download</a></li>
+        </ul>
+      </nav>
+
+      <div class="header-controls">
+        <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme" title="Change appearance">
+          <span class="toggle-text">Light</span>
+          <span class="toggle-icon">☀️</span>
+        </button>
+        <button class="nav-menu" id="nav-menu" aria-label="Open menu" aria-expanded="false">
+          <span class="menu-line"></span>
+          <span class="menu-line"></span>
+          <span class="menu-line"></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero shell">
+      <div class="hero-content">
+        <div class="hero-badge">Private · Offline · Free · No account</div>
+        <h1 class="hero-title">Lib<span class="hero-accent">Ready</span></h1>
+        <p class="hero-sub">A wooden-shelf library and reader for your <strong>PDF</strong> and <strong>EPUB</strong> books. Everything stays on your device — there is no server, no cloud sync, and nothing ever leaves your phone.</p>
+
+        <div class="hero-cta">
+          <a href="#download" class="btn btn-primary">Download for Android</a>
+          <a href="#download" class="btn btn-outline">Get on the App Store</a>
+        </div>
+
+        <p class="hero-note">Android · iOS · Works 100% offline</p>
+      </div>
+
+      <div class="hero-decor">
+        <div class="shelf">
+          <div class="shelf-board"></div>
+          <div class="book book-1"></div>
+          <div class="book book-2"></div>
+          <div class="book book-3"></div>
+          <div class="book book-4"></div>
+          <div class="book book-5"></div>
+          <div class="book book-6"></div>
+          <div class="shelf-shadow"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features shell">
+      <div class="section-header">
+        <span class="section-kicker">What it does</span>
+        <h2 class="section-title">A shelf for every book you own</h2>
+        <p class="section-desc">Import your PDFs and EPUBs, give each one a cover from its first page, and pick up reading right where you left off.</p>
+      </div>
+
+      <div class="features-grid">
+        <article class="feature-card">
+          <div class="feature-icon">📚</div>
+          <h3>Wooden shelf library</h3>
+          <p>Book covers stand on dark-wood shelves with the date you last read them above each cover. Search, filter (All / Reading / Finished / Favourites), and sort your library however you like.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon">📖</div>
+          <h3>Real page-turns</h3>
+          <p>Choose from page curl, book flip, slide, fade, or instant turns. The current page curls over the next, so reading feels like a real book.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon">🎨</div>
+          <h3>Four reader themes</h3>
+          <p>Read in Paper, Sepia, Night, or Black. Adjust font size, line height, margins, justification, and serif/sans typography — all saved per book.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon">🔒</div>
+          <h3>100% offline, always</h3>
+          <p>No account, no server, no analytics, no ads, no network permission. Books, covers, bookmarks, and progress live only in your app's private storage.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon">🔄</div>
+          <h3>Continue reading</h3>
+          <p>A dashboard card shows your last book, progress, and a one-tap resume. Reading statistics and finished shelves track your journey.</p>
+        </article>
+
+        <article class="feature-card">
+          <div class="feature-icon">➕</div>
+          <h3>Import in batches</h3>
+          <p>Add several books at once with a progress dialog. Duplicates are detected by file fingerprint, so the same book is never imported twice.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="themes" class="themes shell">
+      <div class="section-header">
+        <span class="section-kicker">Reader appearance</span>
+        <h2 class="section-title">Read the way you like</h2>
+        <p class="section-desc">Four built-in themes plus fully adjustable typography, so every page looks exactly how you want it.</p>
+      </div>
+
+      <div class="themes-grid">
+        <div class="theme-card">
+          <div class="theme-preview theme-paper"></div>
+          <h3>Paper</h3>
+          <p>Warm cream pages, easy on the eyes in daylight.</p>
+        </div>
+        <div class="theme-card">
+          <div class="theme-preview theme-sepia"></div>
+          <h3>Sepia</h3>
+          <p>A vintage, golden tone for long reading sessions.</p>
+        </div>
+        <div class="theme-card">
+          <div class="theme-preview theme-night"></div>
+          <h3>Night</h3>
+          <p>Soft dark background for reading in low light.</p>
+        </div>
+        <div class="theme-card">
+          <div class="theme-preview theme-black"></div>
+          <h3>Black</h3>
+          <p>Deep black for OLED screens and maximum contrast.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="privacy" class="privacy shell">
+      <div class="privacy-inner">
+        <div class="privacy-content">
+          <span class="section-kicker">Privacy by design</span>
+          <h2 class="section-title">Nothing leaves your device</h2>
+          <p class="section-desc">LibReady does not collect any data. There is no analytics, no advertising, no cloud sync, and the release build declares no network permission on Android.</p>
+          <ul class="privacy-list">
+            <li><strong>All books and covers</strong> are stored locally in the app's private Documents directory.</li>
+            <li><strong>Bookmarks and progress</strong> live in a local database on your device.</li>
+            <li><strong>No account required.</strong> Nothing to sign up for, nothing to log into.</li>
+            <li><strong>Deleting a book</strong> removes its file, cover, bookmarks, and reading progress.</li>
+          </ul>
+        </div>
+        <div class="privacy-seal">
+          <div class="seal-icon">🔒</div>
+          <div class="seal-text">Offline by design</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="how-it-works" class="steps shell">
+      <div class="section-header">
+        <span class="section-kicker">Get started</span>
+        <h2 class="section-title">From file to bookshelf in three steps</h2>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step">
+          <div class="step-number">01</div>
+          <h3>Import</h3>
+          <p>Tap Add book and pick one or more PDF or EPUB files. LibReady copies them into its private storage.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">02</div>
+          <h3>Discover</h3>
+          <p>Each book gets a cover from its first page, with the last-read date shown above it on your shelf.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">03</div>
+          <h3>Read</h3>
+          <p>Tap a cover and turn pages with a real curl. Pick up exactly where you left off, anytime.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="download" class="download shell">
+      <div class="download-inner">
+        <div class="download-content">
+          <span class="section-kicker">Get LibReady</span>
+          <h2 class="section-title">Download the app</h2>
+          <p class="section-desc">LibReady is available for Android and iOS. Choose your platform below.</p>
+
+          <div class="download-buttons">
+            <a href="https://github.com/Rvjais/Book-Library/releases/latest" class="btn btn-primary btn-large" id="apk-download" target="_blank" rel="noopener">
+              <span class="btn-icon">⬇️</span>
+              Download APK (Android)
+            </a>
+            <a href="#" class="btn btn-outline btn-large" id="appstore-download">
+              <span class="btn-icon">🍎</span>
+              App Store (iOS)
+            </a>
+          </div>
+
+          <div class="download-note">
+            <p><strong>Android:</strong> Download the <code>.apk</code> from the latest GitHub release and install it. You may need to enable "Install unknown apps" for your browser or file manager the first time.</p>
+            <p><strong>iOS:</strong> The App Store listing is being prepared. In the meantime, you can build and run the app yourself with Flutter and Xcode.</p>
+            <p class="download-version">Latest version: <strong>1.0.0</strong></p>
+          </div>
+        </div>
+
+        <div class="download-visual">
+          <div class="phone-card">
+            <div class="phone-screen">
+              <div class="phone-header">
+                <span class="dot dot-red"></span>
+                <span class="dot dot-yellow"></span>
+                <span class="dot dot-green"></span>
+              </div>
+              <div class="shelf-mini">
+                <div class="mini-book mb-1"></div>
+                <div class="mini-book mb-2"></div>
+                <div class="mini-book mb-3"></div>
+                <div class="mini-book mb-4"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <img src="assets/app-icon.png" alt="LibReady icon" class="footer-logo" />
+        <div class="footer-name">Lib<span class="logo-accent">Ready</span></div>
+      </div>
+      <p class="footer-copy">
+        A private, offline library and reader for PDF and EPUB books.<br />
+        Built with Flutter · No server · No account · No tracking
+      </p>
+      <div class="footer-links">
+        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a href="https://github.com/Rvjais/Book-Library" target="_blank" rel="noopener">Source on GitHub</a>
+      </div>
+      <p class="footer-credit">Made with a love of books.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
